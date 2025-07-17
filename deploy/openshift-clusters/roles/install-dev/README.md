@@ -22,7 +22,7 @@ The install-dev role handles the complete setup of OpenShift bare metal developm
 ### Default Variables (defaults/main.yml)
 
 - `dev_scripts_path`: Path to dev-scripts directory (default: "openshift-metal3/dev-scripts")
-- `dev_scripts_branch`: Git branch to use (default: "master")  
+- `dev_scripts_branch`: Git branch to use (default: "master")
 - `test_cluster_name`: OpenShift cluster name (default: "ostest")
 - `method`: Deployment method (default: "ipi")
 
@@ -50,4 +50,4 @@ ansible-playbook setup.yml
 ## Notes
 
 - **Alias Configuration**: Adds useful OpenShift CLI aliases to bash environment
-- **Proxy Support**: Includes proxy configuration for network-restricted environments 
+- **Proxy Support**: Includes proxy configuration for network-restricted environments

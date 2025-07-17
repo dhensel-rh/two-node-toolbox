@@ -7,9 +7,10 @@
       StrictHostKeyChecking=accept-new
       UserKnownHostsFile=~/.ssh/known_hosts_dev_vms
     mode: "644"
+
 - name: Checkout openshift-metal3 dev-scripts
   git:
     dest: "{{dev_scripts_path}}"
-    repo: https://github.com/openshift-metal3/dev-scripts
+    repo: "{{dev_scripts_src_repo}}"
     version: "{{ dev_scripts_branch }}"
 - import_tasks: config.yml

@@ -22,6 +22,7 @@ The clean role performs cleanup operations for OpenShift bare metal deployments 
 
 - `dev_scripts_path`: Path to the dev-scripts directory (default: "openshift-metal3/dev-scripts")
 - `dev_scripts_branch`: Git branch to reset to (default: "master")
+- `dev_scripts_src_repo`: Git repo to use (default: "https://github.com/openshift-metal3/dev-scripts")
 
 ### Optional Variables
 
