@@ -1,6 +1,6 @@
 # Two Node Arbiter (TNA)
 
-> Note to deploy a TNA cluster for development please see the [dev deployment guide](../../deploy/ipi-baremetalds-virt/README.md).
+> Note to deploy a TNA cluster for development please see the [dev deployment guide](../../deploy/openshift-clusters/README.md).
 
 Traditionally, achieving High Availability for the control plane in OpenShift Container Platform requires a minimum of three full control plane (master) nodes to maintain etcd quorum. The arbiter node introduces an alternative topology that allows for HA with a reduced footprint and potentially lower hardware costs.
 

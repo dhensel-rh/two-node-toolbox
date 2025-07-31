@@ -1,6 +1,6 @@
 # Two Node with Fencing (TNF)
 
-> Note to deploy a TNF cluster for development please see the [dev deployment guide](../../deploy/ipi-baremetalds-virt/README.md).
+> Note to deploy a TNF cluster for development please see the [dev deployment guide](../../deploy/openshift-clusters/README.md).
 
 Traditionally, achieving High Availability for the control plane in OpenShift Container Platform requires a minimum of three full control plane (master) nodes to maintain etcd quorum. The two-node with fencing configuration introduces an alternative topology that allows for HA with a reduced footprint and lower hardware costs.
 
@@ -22,7 +22,7 @@ The TNF architecture leverages **traditional high-availability concepts and tech
   - **Corosync is responsible for providing a consistent view of cluster membership, reliable ordered messaging, and flexible quorum capabilities**. In a two-node TNF cluster, Corosync **ensures that the nodes** can form a "C-quorum" (Corosync quorum) by establishing **membership with each other**
 ---
 ## Installation and Initialization 
->Note: This process is handled via the provided [dev deployment guide](../../deploy/ipi-baremetalds-virt/README.md), but is described here for your information
+>Note: This process is handled via the provided [dev deployment guide](../../deploy/openshift-clusters/README.md), but is described here for your information
 
  The installation process starts with an initial boostrap node, which will then reboot into one of two final control plane nodes. A critical step involves the Cluster Etcd Operator (CEO), which, upon detecting the DualReplica control plane topology, triggers a TNF controller job. This controller runs pcs commands to initialize Pacemaker and configure the podman-etcd resource agent on both nodes. CEO then relinquishes control of etcd by setting specific flags, causing etcd containers to be removed from static pod configs and immediately recreated by Pacemaker using Podman. Fencing credentials, collected via the install-config (specifically RedFish details like address, username, and password), are made available to the nodes and used by Pacemaker to set up fencing. The Bare Metal Operator (BMO) is also adjusted to prevent power management of control-plane nodes in this topology to avoid conflicts with Pacemaker.
 

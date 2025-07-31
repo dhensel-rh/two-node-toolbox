@@ -1,0 +1,141 @@
+- hosts: metal_machine
+  gather_facts: no
+  force_handlers: yes
+
+  # --- Variable Definitions ---
+  vars:
+    # By default, run in interactive mode. Automation will override this.
+    interactive_mode: true
+    # Set install or redeploy mode based on cleanup requirements
+    install_dev_mode: "{{ 'install' if (vm_cleanup_needed | default(false) | bool or clean_needed | default(false) | bool) else 'redeploy' }}"
+    # VM cleanup flag - set by redeploy-cluster.sh when cluster type changes
+    vm_cleanup_needed: false
+    # Clean flag - set by redeploy-cluster.sh when previous deployment was incomplete
+    clean_needed: false
+    # Cleanup reason for user information
+    cleanup_reason: "none"
+
+  # --- Pre-flight Checks and Confirmation ---
+  pre_tasks:
+    # IMPORTANT WARNING about cluster deployment strategy
+    - name: Warning about deployment strategy
+      ansible.builtin.debug:
+        msg: |-
+          {{ warning_text }}
+      vars:
+        warning_text: |
+          ==================== REDEPLOY INFORMATION ====================
+
+          This redeploy playbook can handle multiple scenarios:
+
+          1. FAST REDEPLOY (same topology, successful previous deployment):
+             - Uses make redeploy (fastest, preserves cached data)
+
+          2. CLEAN DEPLOYMENT (same topology, incomplete previous deployment):
+             - Uses make clean + full installation
+             - Recovers from incomplete/failed deployment state
+
+          3. COMPLETE REBUILD (different topology):
+             - Two-node with fencing ↔ Two-node with arbiter  
+             - Uses make realclean + full installation from scratch
+             - Slower but guarantees clean state with correct topology
+
+          The script automatically detects which scenario applies based on
+          previous cluster state and deployment status.
+
+          ============================================================
+      run_once: true
+      when: interactive_mode | bool
+
+    # The prompt for 'topology' only runs when interactive (script will pass topology)
+    - name: Prompt for the execution topology
+      ansible.builtin.pause:
+        prompt: "Enter topology (arbiter or fencing)"
+      register: prompt_result
+      delegate_to: localhost
+      run_once: true
+      when: interactive_mode | bool
+
+    # Set the topology fact (from prompt or passed parameter)
+    - name: Set the topology fact
+      ansible.builtin.set_fact:
+        topology: "{{ prompt_result.user_input | default(topology | default('arbiter')) }}"
+
+    # Show what will happen
+    - name: Display redeploy plan
+      ansible.builtin.debug:
+        msg: |-
+          {{ plan_text }}
+      vars:
+        plan_text: |
+          Redeploy Plan:
+          - Deployment topology: {{ topology }}
+          - Cleanup reason: {{ cleanup_reason }}
+          - VM cleanup needed: {{ vm_cleanup_needed }}
+          - Clean needed: {{ clean_needed }}
+          - Interactive mode: {{ interactive_mode }}
+          - Installation mode: {{ install_dev_mode }}
+
+          {% if vm_cleanup_needed | bool %}
+          STRATEGY: Complete rebuild (make realclean + full install)
+          REASON: Cluster topology change detected
+          NOTE: Ensures completely clean state but takes longest time
+          {% elif clean_needed | bool %}
+          STRATEGY: Clean deployment (make clean + full install)  
+          REASON: Previous deployment incomplete or status unknown
+          NOTE: Recovers from incomplete state, faster than complete rebuild
+          {% else %}
+          STRATEGY: Fast redeploy (make redeploy)
+          REASON: Same topology with successful previous deployment
+          NOTE: Preserves cached data for fastest deployment
+          {% endif %}
+      run_once: true
+
+    # Confirmation also only runs when interactive
+    - name: Wait for user to press Enter to continue
+      ansible.builtin.pause:
+        prompt: |-
+          Please verify the information above is correct. Press Enter to proceed with:
+          {% if vm_cleanup_needed | bool %}COMPLETE REBUILD
+          {% elif clean_needed | bool %}CLEAN DEPLOYMENT  
+          {% else %}FAST REDEPLOY
+          {% endif %}
+      delegate_to: localhost
+      run_once: true
+      when: interactive_mode | bool
+
+    # Complete cleanup for topology changes
+    - name: Complete cleanup due to topology change (make realclean)
+      make:
+        chdir: "{{ dev_scripts_path }}"
+        target: realclean
+      register: realclean_result
+      when: vm_cleanup_needed | bool
+
+    - name: Display complete cleanup completion
+      ansible.builtin.debug:
+        msg: "Complete cleanup (realclean) completed - ready for full installation"
+      when: vm_cleanup_needed | bool
+
+    # Clean deployment for incomplete previous deployments
+    - name: Clean incomplete deployment state (make clean)
+      make:
+        chdir: "{{ dev_scripts_path }}"
+        target: clean
+      register: clean_result
+      when: 
+        - clean_needed | bool
+        - not (vm_cleanup_needed | bool)  # Don't clean if we already did realclean
+
+    - name: Display clean completion
+      ansible.builtin.debug:
+        msg: "Clean completed - ready for fresh installation to recover from incomplete state"
+      when: 
+        - clean_needed | bool
+        - not (vm_cleanup_needed | bool)
+
+  roles:
+    - config
+    - install-dev
+
+  # Cluster state management is now handled by the install-dev role

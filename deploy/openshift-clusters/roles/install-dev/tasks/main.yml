@@ -1,0 +1,62 @@
+- import_tasks: dev-scripts.yml
+
+# Full installation mode (topology change - after realclean)
+- name: Check if kubeconfig exists (should not after realclean)
+  stat:
+    path: "{{kubeconfig_path}}"
+  register: kubeconfig_after_realclean
+  when: install_dev_mode is defined and install_dev_mode == 'install'
+
+# PHASE 1: DEPLOYING - Update state before starting installation
+- name: Set cluster state to deploying (full installation)
+  include_tasks: cluster-state.yml
+  vars:
+    cluster_state_phase: 'deploying'
+  when: 
+    - install_dev_mode is defined and install_dev_mode == 'install'
+    - not kubeconfig_after_realclean.stat.exists
+
+- import_tasks: create.yml
+  when: 
+    - install_dev_mode is defined and install_dev_mode == 'install'
+    - not kubeconfig_after_realclean.stat.exists
+
+- name: Display full installation completion
+  debug:
+    msg: "OpenShift cluster full installation completed successfully after topology change!"
+  when: install_dev_mode is defined and install_dev_mode == 'install'
+
+# PHASE 1: DEPLOYING - Update state before starting redeploy
+- name: Set cluster state to deploying (redeploy)
+  include_tasks: cluster-state.yml
+  vars:
+    cluster_state_phase: 'deploying'
+  when: install_dev_mode is defined and install_dev_mode == 'redeploy'
+
+# Redeploy mode (same topology)
+- name: Redeploy OpenShift cluster using dev-scripts
+  make:
+    chdir: "{{ dev_scripts_path }}"
+    target: redeploy
+  register: redeploy_result
+  when: install_dev_mode is defined and install_dev_mode == 'redeploy'
+
+- name: Display redeploy completion
+  debug:
+    msg: "OpenShift cluster redeploy completed successfully for same topology!"
+  when: install_dev_mode is defined and install_dev_mode == 'redeploy'
+
+# Common tasks for both modes
+- name: Setup oc aliases
+  blockinfile:
+    path: .bashrc
+    validate: bash -e %s
+    marker: "# {mark} OPENSHIFT ALIAS BLOCK"
+    block: "{{ lookup('template', 'oc_aliases.sh.j2') }}"
+- import_tasks: proxy.yml
+
+# PHASE 2: DEPLOYED - Update state after successful completion
+- name: Set cluster state to deployed
+  include_tasks: cluster-state.yml
+  vars:
+    cluster_state_phase: 'deployed'

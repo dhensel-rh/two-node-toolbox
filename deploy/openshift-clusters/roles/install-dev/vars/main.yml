@@ -1,0 +1,9 @@
+kubeconfig_path: "{{dev_scripts_path}}/ocp/{{test_cluster_name}}/auth/kubeconfig"
+kubeadmin_password_path: "{{dev_scripts_path}}/ocp/{{test_cluster_name}}/auth/kubeadmin-password"
+config_file:
+  ipi: config_{{topology}}.sh
+make_target:
+  ipi: "all"
+# Cluster state management variables
+cluster_state_dir: "../aws-hypervisor/instance-data"
+cluster_state_filename: "cluster-vm-state.json"
