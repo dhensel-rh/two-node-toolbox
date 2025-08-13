@@ -1,0 +1,3 @@
+
+shellcheck:
+	@./hack/shellcheck.sh
