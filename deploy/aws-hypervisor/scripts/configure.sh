@@ -1,12 +1,12 @@
 #!/bin/bash
+# shellcheck source=/dev/null
 source ~/profile.env
 
-sudo hostnamectl set-hostname aws-${STACK_NAME}
+sudo hostnamectl set-hostname "aws-${STACK_NAME}"
 
 function get_ocp_version() {
     local latest_ga_ocp_version
-    latest_ga_ocp_version="$(curl -sL https://sippy.dptools.openshift.org/api/releases | jq -re '.ga_dates | to_entries | max_by(.value) | .key')"
-    if [ $? -eq 0 ]
+    if latest_ga_ocp_version="$(curl -sL https://sippy.dptools.openshift.org/api/releases | jq -re '.ga_dates | to_entries | max_by(.value) | .key')";
     then
         echo "${latest_ga_ocp_version:-4.19}"
     else
@@ -19,10 +19,10 @@ if id "$user" >/dev/null 2>&1; then
     echo "user $user found"
 else
     echo "user $user not found, creating"
-    sudo useradd -m $user
+    sudo useradd -m "$user"
     # Generate a random secure password
     random_password=$(openssl rand -base64 12)
-    echo "${random_password}" | sudo passwd --stdin $user
+    echo "${random_password}" | sudo passwd --stdin "$user"
     echo "========================================"
     echo "User: $user"
     echo "Password: $random_password"

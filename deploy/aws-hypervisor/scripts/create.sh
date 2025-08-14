@@ -1,6 +1,7 @@
 #!/bin/bash
 
 SCRIPT_DIR=$(dirname "$0")
+# shellcheck source=/dev/null
 source "${SCRIPT_DIR}/common.sh"
 
 set -o nounset
@@ -357,11 +358,11 @@ aws --region "$REGION" cloudformation create-stack --stack-name "${STACK_NAME}" 
     --capabilities CAPABILITY_NAMED_IAM \
     --no-cli-pager \
     --parameters \
-        ParameterKey=HostInstanceType,ParameterValue="${EC2_INSTANCE_TYPE}"  \
-        ParameterKey=Machinename,ParameterValue="${STACK_NAME}"  \
-        ParameterKey=AmiId,ParameterValue="${RHEL_HOST_AMI}" \
-        ParameterKey=EC2Type,ParameterValue="${ec2Type}" \
-        ParameterKey=PublicKeyString,ParameterValue="$(cat ${SSH_PUBLIC_KEY})"
+        "ParameterKey=HostInstanceType,ParameterValue=${EC2_INSTANCE_TYPE}"  \
+        "ParameterKey=Machinename,ParameterValue=${STACK_NAME}"  \
+        "ParameterKey=AmiId,ParameterValue=${RHEL_HOST_AMI}" \
+        "ParameterKey=EC2Type,ParameterValue=${ec2Type}" \
+        "ParameterKey=PublicKeyString,ParameterValue=$(cat "${SSH_PUBLIC_KEY}")"
 
 echo "Created stack"
 
@@ -399,4 +400,4 @@ echo "updating sshconfig for aws-hypervisor"
 copy_configure_script
 set_aws_machine_hostname
 
-scp "$(cat ${SCRIPT_DIR}/../${SHARED_DIR}/ssh_user)@${HOST_PUBLIC_IP}:/tmp/init_output.txt" "${SCRIPT_DIR}/../${SHARED_DIR}/init_output.txt"
+scp "$(cat "${SCRIPT_DIR}/../${SHARED_DIR}/ssh_user")@${HOST_PUBLIC_IP}:/tmp/init_output.txt" "${SCRIPT_DIR}/../${SHARED_DIR}/init_output.txt"

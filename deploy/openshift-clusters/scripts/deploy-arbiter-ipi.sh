@@ -30,12 +30,8 @@ echo "Running Ansible setup playbook with arbiter topology in non-interactive mo
 cd "${DEPLOY_DIR}/openshift-clusters"
 
 # Run the setup playbook with arbiter topology and non-interactive mode
-ansible-playbook setup.yml \
-    -e "topology=arbiter" \
-    -e "interactive_mode=false" \
-    -i inventory.ini
-
-if [[ $? -eq 0 ]]; then
+if ansible-playbook setup.yml -e "topology=arbiter" -e "interactive_mode=false" -i inventory.ini; 
+then
     echo ""
     echo "✓ OpenShift arbiter cluster deployment completed successfully!"
     echo ""

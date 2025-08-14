@@ -1,6 +1,7 @@
 #!/bin/bash
 
 SCRIPT_DIR=$(dirname "$0")
+# shellcheck source=/dev/null
 source "${SCRIPT_DIR}/common.sh"
 
 set -o nounset
@@ -72,7 +73,7 @@ echo "Updating SSH config for aws-hypervisor..."
 # Check and restart the proxy container for immediate proxy capabilities
 echo "Checking proxy container status..."
 set +e  # Allow commands to fail for proxy container checks
-ssh -o ConnectTimeout=10 "$(cat ${SCRIPT_DIR}/../${SHARED_DIR}/ssh_user)@${HOST_PUBLIC_IP}" << 'EOF'
+ssh -o ConnectTimeout=10 "$(cat "${SCRIPT_DIR}/../${SHARED_DIR}/ssh_user")@${HOST_PUBLIC_IP}" << 'EOF'
     echo "Checking external-squid proxy container..."
     
     # Check if the container exists and get its status

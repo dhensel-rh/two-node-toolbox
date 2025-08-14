@@ -15,7 +15,7 @@ export BMC_DRIVER=redfish
 # You can read more on this here: https://github.com/openshift-metal3/dev-scripts/blob/3f070cfd36977381a186cadfb44887856d652bed/config_example.sh#L21
 # export OPENSHIFT_CI="true"
 
-export CI_TOKEN=sha256~<PASTE_YOUR_CI_TOKEN_HERE>
+export CI_TOKEN="sha256~<PASTE_YOUR_CI_TOKEN_HERE>"
 
 # You can find the latest public images in https://quay.io/repository/openshift-release-dev/ocp-release?tab=tags 
 # and select your preferred version. Public sources can be found at https://mirror.openshift.com/pub/openshift-v4/

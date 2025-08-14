@@ -5,6 +5,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 DEPLOY_DIR="$(cd "${SCRIPT_DIR}/../../" && pwd)"
 
 # Source the instance.env file with absolute path
+# shellcheck source=/dev/null
 source "${DEPLOY_DIR}/aws-hypervisor/instance.env"
 
 # Resolve SHARED_DIR to absolute path if it's relative
@@ -46,7 +47,7 @@ echo "Connecting to instance at ${HOST_PUBLIC_IP}..."
 
 # Check if dev-scripts directory exists
 set +e  # Allow commands to fail
-ssh -o ConnectTimeout=10 "$(cat ${SHARED_DIR}/ssh_user)@${HOST_PUBLIC_IP}" "test -d ~/openshift-metal3" 2>/dev/null
+ssh -o ConnectTimeout=10 "$(cat "${SHARED_DIR}/ssh_user)@${HOST_PUBLIC_IP}")" "test -d ~/openshift-metal3" 2>/dev/null
 DEV_SCRIPTS_EXISTS=$?
 set -e
 
@@ -59,7 +60,7 @@ fi
 echo "Found dev-scripts directory. Starting up OpenShift cluster VMs..."
 
 # Start the cluster VMs remotely
-ssh "$(cat ${SHARED_DIR}/ssh_user)@${HOST_PUBLIC_IP}" << 'EOF'
+ssh "$(cat "${SHARED_DIR}/ssh_user)@${HOST_PUBLIC_IP}")" << 'EOF'
     set -e
     cd ~/openshift-metal3/dev-scripts
     

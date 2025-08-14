@@ -30,9 +30,8 @@ echo "Running Ansible clean playbook..."
 cd "${DEPLOY_DIR}/openshift-clusters"
 
 # Run the clean playbook (uses default complete=false, which runs 'clean' target)
-ansible-playbook clean.yml -i inventory.ini
-
-if [[ $? -eq 0 ]]; then
+if ansible-playbook clean.yml -i inventory.ini;
+then
     echo ""
     echo "✓ OpenShift cluster clean completed successfully!"
     echo "The cluster has been cleaned using the 'clean' target."

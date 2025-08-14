@@ -1,5 +1,6 @@
 #!/bin/bash
 SCRIPT_DIR=$(dirname "$0")
+# shellcheck source=/dev/null
 source "${SCRIPT_DIR}/../instance.env"
 
 # Set defaults
@@ -39,17 +40,16 @@ function aws_ec2_describe_images() {
 function get_rhel_ami() {
   local rhel_host_ami_object
   local ec2_instances
-  ec2_instances="$(aws_ec2_describe_images)"
-  if [ $? -ne 0 ]
+  if ! ec2_instances="$(aws_ec2_describe_images)";
   then
     msg_err " getting AMI from aws cli: $ec2_instances" >&2
     echo ""
   fi
-  rhel_host_ami_object=$( echo "$ec2_instances" | jq -re 'map({ name: .[0], id: .[1], creationDate: .[2]}) | .[0]')
-  if [ $? -eq 0 ]
+
+  if rhel_host_ami_object=$( echo "$ec2_instances" | jq -re 'map({ name: .[0], id: .[1], creationDate: .[2]}) | .[0]');
   then
-        ami_name="$(echo $rhel_host_ami_object | jq '.name')"
-        ami_id="$(echo $rhel_host_ami_object | jq '.id')"
+        ami_name="$(echo "$rhel_host_ami_object" | jq '.name')"
+        ami_id="$(echo "$rhel_host_ami_object" | jq '.id')"
         msg_info "Found AMI: $ami_name" >&2
         msg_info "Found AMI ID: $ami_id" >&2
         echo "${ami_id}"
@@ -61,15 +61,16 @@ function get_rhel_ami() {
 
 function copy_configure_script() {
     local instance_ip
-    instance_ip="$(cat ${SCRIPT_DIR}/../${SHARED_DIR}/ssh_user)@$(cat ${SCRIPT_DIR}/../${SHARED_DIR}/public_address)"
+    instance_ip="$(cat "${SCRIPT_DIR}/../${SHARED_DIR}/ssh_user")@$(cat "${SCRIPT_DIR}/../${SHARED_DIR}/public_address")"
     msg_info "copying over config ${SCRIPT_DIR}/configure.sh and making it executable"
-    scp ${SCRIPT_DIR}/configure.sh $instance_ip:~/configure.sh
-    ssh $instance_ip 'chmod +x ~/configure.sh'
+    scp "${SCRIPT_DIR}/configure.sh" "$instance_ip:~/configure.sh"
+    ssh "$instance_ip" 'chmod +x ~/configure.sh'
 }
 
+# shellcheck disable=SC2029 # we want interpolation for the stack name in the ssh command
 function set_aws_machine_hostname() {
     local instance_ip
-    instance_ip="$(cat ${SCRIPT_DIR}/../${SHARED_DIR}/ssh_user)@$(cat ${SCRIPT_DIR}/../${SHARED_DIR}/public_address)"
+    instance_ip="$(cat "${SCRIPT_DIR}/../${SHARED_DIR}/ssh_user")@$(cat "${SCRIPT_DIR}/../${SHARED_DIR}/public_address")"
     msg_info "setting machine hostname to aws-${STACK_NAME}"
-    ssh $instance_ip "sudo hostnamectl set-hostname aws-${STACK_NAME}"
+    ssh "$instance_ip" "sudo hostnamectl set-hostname aws-$STACK_NAME"
 }

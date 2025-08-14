@@ -5,6 +5,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 DEPLOY_DIR="$(cd "${SCRIPT_DIR}/../../" && pwd)"
 
 # Source the instance.env file with absolute path
+# shellcheck source=/dev/null
 source "${DEPLOY_DIR}/aws-hypervisor/instance.env"
 
 # Resolve SHARED_DIR to absolute path if it's relative
@@ -134,7 +135,7 @@ echo ""
 echo "Select deployment mode:"
 echo "1) arbiter"
 echo "2) fencing"
-read -p "Enter choice (1-2): " choice
+read -rp "Enter choice (1-2): " choice
 
 case $choice in
     1) topology="arbiter" ;;

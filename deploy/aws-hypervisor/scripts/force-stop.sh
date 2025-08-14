@@ -1,6 +1,7 @@
 #!/bin/bash
 
 SCRIPT_DIR=$(dirname "$0")
+# shellcheck source=/dev/null
 source "${SCRIPT_DIR}/common.sh"
 
 set -o nounset
