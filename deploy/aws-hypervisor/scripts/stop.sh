@@ -1,6 +1,7 @@
 #!/bin/bash
 
 SCRIPT_DIR=$(dirname "$0")
+# shellcheck source=/dev/null
 source "${SCRIPT_DIR}/common.sh"
 
 set -o nounset
@@ -66,7 +67,7 @@ if [[ "${INSTANCE_STATE}" == "running" ]]; then
         
         # Check if there are running dev-scripts deployments
         set +e  # Allow commands to fail
-        ssh -o ConnectTimeout=10 "$(cat ${SCRIPT_DIR}/../${SHARED_DIR}/ssh_user)@${HOST_PUBLIC_IP}" "test -d ~/openshift-metal3" 2>/dev/null
+        ssh -o ConnectTimeout=10 "$(cat "${SCRIPT_DIR}/../${SHARED_DIR}/ssh_user)@${HOST_PUBLIC_IP}")" "test -d ~/openshift-metal3" 2>/dev/null
         DEV_SCRIPTS_EXISTS=$?
         set -e
         
@@ -75,7 +76,7 @@ if [[ "${INSTANCE_STATE}" == "running" ]]; then
             
             # Check for running VMs
             set +e  # Allow commands to fail
-            RUNNING_VMS=$(ssh -o ConnectTimeout=10 "$(cat ${SCRIPT_DIR}/../${SHARED_DIR}/ssh_user)@${HOST_PUBLIC_IP}" << 'EOF'
+            RUNNING_VMS=$(ssh -o ConnectTimeout=10 "$(cat "${SCRIPT_DIR}/../${SHARED_DIR}/ssh_user")@${HOST_PUBLIC_IP}" << 'EOF'
                 set -e
                 cd ~/openshift-metal3/dev-scripts
                 

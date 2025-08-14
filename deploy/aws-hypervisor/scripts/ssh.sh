@@ -1,7 +1,8 @@
 #!/bin/bash
 SCRIPT_DIR=$(dirname "$0")
+# shellcheck source=/dev/null
 source "${SCRIPT_DIR}/common.sh"
 
-instance_ip=$(cat ${SCRIPT_DIR}/../${SHARED_DIR}/ssh_user)@$(cat ${SCRIPT_DIR}/../${SHARED_DIR}/public_address)
+instance_ip="$(cat "${SCRIPT_DIR}/../${SHARED_DIR}/ssh_user")@$(cat "${SCRIPT_DIR}/../${SHARED_DIR}/public_address")"
 
-ssh $instance_ip
+ssh "$instance_ip"

@@ -1,6 +1,7 @@
 #!/bin/bash
 
 SCRIPT_DIR=$(dirname "$0")
+# shellcheck source=/dev/null
 source "${SCRIPT_DIR}/common.sh"
 
 set -o nounset
@@ -24,8 +25,8 @@ if [[ ! -f "${SCRIPT_DIR}/../${SHARED_DIR}/ssh_user" ]]; then
 fi
 
 # Read instance data
-PUBLIC_IP=$(cat "${SCRIPT_DIR}/../${SHARED_DIR}/public_address" | tr -d '\n')
-SSH_USER=$(cat "${SCRIPT_DIR}/../${SHARED_DIR}/ssh_user" | tr -d '\n')
+PUBLIC_IP="$(< "${SCRIPT_DIR}/../${SHARED_DIR}/public_address" tr -d '\n')"
+SSH_USER="$(< "${SCRIPT_DIR}/../${SHARED_DIR}/ssh_user" tr -d '\n')"
 
 echo "Updating inventory with:"
 echo "  User: ${SSH_USER}"

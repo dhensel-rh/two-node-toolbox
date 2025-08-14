@@ -1,8 +1,9 @@
 #!/bin/bash
 SCRIPT_DIR=$(dirname "$0")
+# shellcheck source=/dev/null
 source "${SCRIPT_DIR}/common.sh"
 
-echo "Stack: $(cat ${SCRIPT_DIR}/../${SHARED_DIR}/rhel_host_stack_name)"
-echo "Host: $(cat ${SCRIPT_DIR}/../${SHARED_DIR}/public_address)"
-echo "User: $(cat ${SCRIPT_DIR}/../${SHARED_DIR}/ssh_user)"
-echo "Cockpit URL: http://$(cat ${SCRIPT_DIR}/../${SHARED_DIR}/public_address):9090"
+echo "Stack: $(cat "${SCRIPT_DIR}/../${SHARED_DIR}/rhel_host_stack_name")"
+echo "Host: $(cat "${SCRIPT_DIR}/../${SHARED_DIR}/public_address")"
+echo "User: $(cat "${SCRIPT_DIR}/../${SHARED_DIR}/ssh_user")"
+echo "Cockpit URL: http://$(cat "${SCRIPT_DIR}/../${SHARED_DIR}/public_address"):9090"

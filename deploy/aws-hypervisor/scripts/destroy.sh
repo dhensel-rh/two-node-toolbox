@@ -1,6 +1,7 @@
 #!/bin/bash
 
 SCRIPT_DIR=$(dirname "$0")
+# shellcheck source=/dev/null
 source "${SCRIPT_DIR}/common.sh"
 
 # Check if instance data directory exists and has the required files
@@ -14,7 +15,7 @@ if [[ ! -f "$public_address_file" ]] || [[ ! -f "$ssh_user_file" ]]; then
     echo "Checking if CloudFormation stack '${STACK_NAME}' exists..."
     
     # Check if the stack exists in CloudFormation
-    if aws --region $REGION cloudformation describe-stacks --stack-name "${STACK_NAME}" &>/dev/null; then
+    if aws --region "$REGION" cloudformation describe-stacks --stack-name "${STACK_NAME}" &>/dev/null; then
         echo "Found CloudFormation stack '${STACK_NAME}' - proceeding with stack deletion only."
     else
         echo "No CloudFormation stack '${STACK_NAME}' found either."
@@ -35,10 +36,10 @@ fi
 
 # Delete the CloudFormation stack
 echo "Deleting CloudFormation stack '${STACK_NAME}'..."
-aws --region $REGION cloudformation delete-stack --stack-name "${STACK_NAME}"
+aws --region "$REGION" cloudformation delete-stack --stack-name "${STACK_NAME}"
 
 echo "Waiting for stack $STACK_NAME to be deleted..."
-aws --region $REGION cloudformation wait stack-delete-complete --stack-name "${STACK_NAME}" &
+aws --region "$REGION" cloudformation wait stack-delete-complete --stack-name "${STACK_NAME}" &
 wait "$!"
 
 # Clean up instance data directory
