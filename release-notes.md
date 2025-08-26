@@ -1,5 +1,28 @@
 # Two-Node Toolbox Release Notes
 
+## Version 0.5.1 - Agent-Based Installation Support
+*Release Date: August 2025*
+
+### New Features
+
+#### Agent-Based Installation for Arbiter Topology
+- Added Agent-based installation method alongside existing IPI method for arbiter topology
+- New `make arbiter-agent` command for non-interactive Agent-based deployments
+- Interactive method selection (ipi or agent) when deploying arbiter topology
+
+### Technical Changes
+
+- Enhanced arbiter configuration with separate IPI and Agent-specific variables
+- Updated default OpenShift release image to 4.20.0-ec.4-x86_64
+- Added deployment script with comprehensive error handling
+
+### Documentation Updates
+
+- Updated READMEs with Agent-based installation options
+- Enhanced configuration examples with method-specific sections
+
+---
+
 ## Version 0.5 - Instance and Cluster Lifecycle Management
 *Release Date: July 2025*
 
