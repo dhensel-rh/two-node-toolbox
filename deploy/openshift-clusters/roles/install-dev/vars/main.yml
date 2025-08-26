@@ -1,9 +1,18 @@
 kubeconfig_path: "{{dev_scripts_path}}/ocp/{{test_cluster_name}}/auth/kubeconfig"
 kubeadmin_password_path: "{{dev_scripts_path}}/ocp/{{test_cluster_name}}/auth/kubeadmin-password"
+method: ipi
+supported_methods:
+  - ipi
+  - agent
+supported_topologies:
+  - arbiter
+  - fencing
 config_file:
   ipi: config_{{topology}}.sh
+  agent: config_{{topology}}.sh
 make_target:
   ipi: "all"
+  agent: "agent"
 # Cluster state management variables
 cluster_state_dir: "../aws-hypervisor/instance-data"
 cluster_state_filename: "cluster-vm-state.json"

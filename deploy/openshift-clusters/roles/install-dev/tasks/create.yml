@@ -6,6 +6,22 @@
   changed_when: true
   notify:
     - Set OCP project
+
+- name: Install Dev Scripts Requirements for OpenShift
+  make:
+    chdir: "{{dev_scripts_path}}"
+    target: "requirements"
+
+- name: Allow qemu read access for agent install
+  ansible.posix.acl:
+    path: "."
+    entity: qemu
+    etype: user
+    permissions: rx
+    state: present
+  become: true
+  when: method == "agent"
+
 - name: Start OpenShift
   make:
     chdir: "{{dev_scripts_path}}"

@@ -52,6 +52,7 @@ The deployment process involves updating configuration files and running an Ansi
 #### Config files for dev-scripts
 - In `roles/install-dev/files/`, review `config_XXXXX_example.sh` files and copy them to `config_XXXXX.sh` as needed, removing the `_example` from the filename.
 - The config file for each topology is slightly different. Sample `config_arbiter_example.sh` and `config_fencing_example.sh` files are provided, ready to use with the AWS dev hypervisor. You can change the variables inside (see Note below), but when copying them, the expected file names are `config_arbiter.sh` and `config_fencing.sh`.
+- The arbiter config file contains separate configuration sections for IPI and Agent-based installations. Use the appropriate section based on your chosen installation method.
 - Unless you're using `OPENSHIFT_CI="True"` to avoid using private images, you should fill CI_TOKEN with your own token. You can get it from https://console-openshift-console.apps.ci.l2s4.p1.openshiftapps.com. Start by clicking your name in the top right and clicking "copy login command." At this point, a new window will open, and you should click on "Display Token." It should now display an API token you can copy over to your profile.
 - Modify the `OPENSHIFT_RELEASE_IMAGE` variable in this file with your desired image.
 - Example: `OPENSHIFT_RELEASE_IMAGE=quay.io/openshift-release-dev/ocp-release:4.19.0-rc.5-multi-x86_64`.
@@ -72,7 +73,9 @@ The deployment process involves updating configuration files and running an Ansi
 ### Step 2: Run Deployment
 
 - Execute the command ansible-playbook setup.yml -i inventory.ini to start the deployment process.
-  - You will be prompted to choose the installation mode for the desired topology: arbiter or fencing, and then to confirm the config_X.sh file name. 
+  - You will be prompted to choose the installation mode for the desired topology: arbiter or fencing.
+  - For arbiter topology, you will also be prompted to choose the installation method: ipi or agent.
+  - Then you will be asked to confirm the config_X.sh file name. 
 - This process will take between 30 and 60 minutes, so be prepared for it to run for some time. The sample inventory.ini provided already accounts for this and provides an Ansible variable to keep the SSH connection alive. 
 Usually the longest task is `[install-dev: Start Openshift]`, which includes downloading all necessary images and provisioning the VMs and the actual OCP cluster. 
 If you want to check the progress of the installation you can review or follow the logs produced by dev-scripts on `/home/<user>/openshift-metal3/dev-scripts/logs/`.
@@ -95,9 +98,11 @@ If you wish to reach the Console WebUI, you can use any preferred proxy extensio
 
 #### Non-interactive usage
 - The topology of the cluster (installation mode) can be selected through the Ansible variable "topology"
-- If you are running this installation non-interactively, you can set a variable to avoid all the prompts
-  > Example:
+- For arbiter topology, you can also specify the installation method using the "method" variable (ipi or agent)
+- If you are running this installation non-interactively, you can set variables to avoid all the prompts
+  > Examples:
  ansible-playbook setup.yml -e "topology=arbiter" -e "interactive_mode=false" -i inventory.ini
+ ansible-playbook setup.yml -e "topology=arbiter" -e "method=agent" -e "interactive_mode=false" -i inventory.ini
 
 #### Redfish Stonith Configuration
 
