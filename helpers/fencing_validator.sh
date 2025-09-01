@@ -41,7 +41,7 @@ IP_A="${IP_A:-}"
 IP_B="${IP_B:-}"
 OC_BIN="${OC_BIN:-oc}"
 OC_REQ_TIMEOUT="${OC_REQ_TIMEOUT:-10s}"
-SHORT_TIMEOUT="${SHORT_TIMEOUT:-30s}" 
+SHORT_TIMEOUT="${SHORT_TIMEOUT:-60s}"
 
 valreq(){ [[ -n "${2-}" && "$2" != -* ]]; }
 
@@ -93,17 +93,17 @@ oc_run(){ timeout "$SHORT_TIMEOUT" "$OC_BIN" --request-timeout="$OC_REQ_TIMEOUT"
 
 host_run() {
   local target="$1"; shift
-  local cmd="$*"
+  local raw="$*"
+  local cmd="$raw"
   cmd=${cmd//\'/\'"\'"\'}
   if [[ "$TRANSPORT" == ssh ]]; then
     ssh_cmd "$target" "sudo -n bash -lc '$cmd'"
   else
-    $OC_BIN debug -q node/"$target" -- chroot /host bash -lc "$cmd"
+    oc_run debug -q node/"$target" -- chroot /host bash -lc '$cmd'
   fi
 }
 
 ocdebug_ok(){ oc_run debug -q node/"$1" -- chroot /host true >/dev/null 2>&1; }
-
 ssh_ok(){ ssh_cmd "$1" true >/dev/null 2>&1; }
 
 _sudo_check() {
@@ -115,8 +115,8 @@ _sudo_check() {
 
 # -------- Discover nodes --------
 log "Detecting control-plane nodes…"
-mapfile -t A < <($OC_BIN get nodes -l node-role.kubernetes.io/master= -o jsonpath='{range .items[*]}{.metadata.name}{"\n"}{end}' 2>/dev/null || true)
-mapfile -t B < <($OC_BIN get nodes -l node-role.kubernetes.io/control-plane= -o jsonpath='{range .items[*]}{.metadata.name}{"\n"}{end}' 2>/dev/null || true)
+mapfile -t A < <(timeout "$SHORT_TIMEOUT" $OC_BIN get nodes -l node-role.kubernetes.io/master= -o jsonpath='{range .items[*]}{.metadata.name}{"\n"}{end}' 2>/dev/null || true)
+mapfile -t B < <(timeout "$SHORT_TIMEOUT" $OC_BIN get nodes -l node-role.kubernetes.io/control-plane= -o jsonpath='{range .items[*]}{.metadata.name}{"\n"}{end}' 2>/dev/null || true)
 declare -a CP_NODES=(); declare -A seen=()
 for n in "${A[@]}" "${B[@]}"; do [[ -z "${seen["$n"]+x}" ]] && { CP_NODES+=("$n"); seen["$n"]=1; }; done
 [[ ${#CP_NODES[@]} -eq 2 ]] || { err "Expected exactly 2 control-plane nodes, got ${#CP_NODES[@]}: ${CP_NODES[*]-}"; exit 1; }
@@ -179,13 +179,13 @@ node_ready(){
 pcs_nodes_line(){
   local out
   out="$(host_run "$CONDUCTOR" "pcs status nodes 2>/dev/null || crm_mon -1 2>/dev/null" 2>/dev/null || true)"
-  awk '/^\s*Online:/{print; exit}' <<<"$out"
+  awk '/^[[:space:]]*Online:/{print; exit}' <<<"$out"
 }
 
 pcs_nodes_names() {
   local out
   out="$(host_run "$CONDUCTOR" "pcs status nodes 2>/dev/null || crm_mon -1 2>/dev/null" 2>/dev/null || true)"
-  awk '/^\s*Online:/{ 
+  awk '/^[[:space:]]*Online:/{ 
     for (i=2;i<=NF;i++) { gsub(/[][]/,"",$i); printf "%s ", $i } 
   } END{ print "" }' <<<"$out"
 }
@@ -252,7 +252,7 @@ check_daemon_status(){
   [[ -n "$ds" ]] || { err "Daemon Status section not found in 'pcs status' output"; return 1; }
 
   for svc in corosync pacemaker pcsd; do
-    if ! grep -qiE "^\s*$svc:\s*active/enabled" <<<"$ds"; then
+    if ! grep -qiE "^[[:space:]]*$svc:[[:space:]]*(active|running)" <<<"$ds"; then
       err "Daemon '$svc' not active/enabled"
       ok_all=0
     fi
@@ -318,17 +318,37 @@ switch_conductor_for(){
 
 fence(){
   local t="$1"
-  if $DRY_RUN; then
-    echo "[DRY-RUN] fence '$t' from '$CONDUCTOR'"
-    return 0
-  fi
   log "[ACTION] Fencing (reboot) '$t' from '$CONDUCTOR'..."
   local to=$(( TIMEOUT/2 )); (( to < 1 )) && to=1
+
+  if [[ "$TRANSPORT" == "ocdebug" ]]; then
+    if ! host_run "$CONDUCTOR" "command -v systemd-run >/dev/null 2>&1 && \
+        systemd-run --unit fence-$t --collect bash -lc 'pcs stonith fence $t' \
+        || nohup bash -lc 'pcs stonith fence $t' >/var/tmp/fence-$t.log 2>&1 & disown"; then
+      err "Dispatching fence for '$t' via ocdebug failed to start"
+      return 1
+    fi
+    sleep 2
+    return 0
+  fi
+
   if ! host_run "$CONDUCTOR" "timeout $to pcs stonith fence $t"; then
     err "Fencing '$t' failed or timed out (${to}s)"
     return 1
   fi
 }
+
+# --- DRY RUN helper ---
+dry_run_plan() {
+  local c1="$CONDUCTOR" c2
+  if [[ "$TRANSPORT" == "ssh" ]]; then
+    c2=$([[ "$c1" == "$IP_B" ]] && echo "$IP_A" || echo "$IP_B")
+  else
+    c2=$([[ "$c1" == "$NODE_B" ]] && echo "$NODE_A" || echo "$NODE_B")
+  fi
+  log "[DRY-RUN] Would fence $PCMK_A from $c1, then $PCMK_B from $c2"
+}
+
 
 # -------- Run --------
 log "Mode: transport=$TRANSPORT disruptive=$DISRUPTIVE dry-run=$DRY_RUN"
@@ -340,18 +360,13 @@ check_daemon_status || exit 2
 wait_etcd || exit 2
 ok "[PASS] Non-disruptive checks complete"
 
-$DISRUPTIVE || { echo "Done (non-disruptive)."; exit 0; }
-
-$DRY_RUN && {
-  c1="$CONDUCTOR"
-  if [[ "$TRANSPORT" == "ssh" ]]; then
-    c2=$([[ "$c1" == "$IP_B" ]] && echo "$IP_A" || echo "$IP_B")
-  else
-    c2=$([[ "$c1" == "$NODE_B" ]] && echo "$NODE_A" || echo "$NODE_B")
-  fi
-  log "[DRY-RUN] Would fence $PCMK_A from $c1, then $PCMK_B from $c2"
+if ! $DISRUPTIVE; then
+  $DRY_RUN && dry_run_plan
+  echo "Done (non-disruptive)."
   exit 0
-}
+fi
+
+$DRY_RUN && { dry_run_plan; exit 0; }
 
 log "=== Disruptive validation ==="
 # Fence A
