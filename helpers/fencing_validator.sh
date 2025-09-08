@@ -138,8 +138,9 @@ _sudo_check() {
 
 # -------- Discover nodes --------
 log "Detecting control-plane nodes…"
-mapfile -t A < <(timeout "$CMD_EXEC_TIMEOUT_SECS" $OC_BIN get nodes -l node-role.kubernetes.io/master= -o jsonpath='{range .items[*]}{.metadata.name}{"\n"}{end}' 2>/dev/null || true)
-mapfile -t B < <(timeout "$CMD_EXEC_TIMEOUT_SECS" $OC_BIN get nodes -l node-role.kubernetes.io/control-plane= -o jsonpath='{range .items[*]}{.metadata.name}{"\n"}{end}' 2>/dev/null || true)
+mapfile -t A < <(timeout "$CMD_EXEC_TIMEOUT_SECS" "$OC_BIN" get nodes -l node-role.kubernetes.io/master= -o jsonpath='{range .items[*]}{.metadata.name}{"\n"}{end}' 2>/dev/null || true)
+mapfile -t B < <(timeout "$CMD_EXEC_TIMEOUT_SECS" "$OC_BIN" get nodes -l node-role.kubernetes.io/control-plane= -o jsonpath='{range .items[*]}{.metadata.name}{"\n"}{end}' 2>/dev/null || true)
+
 declare -a CP_NODES=(); declare -A seen=()
 for n in "${A[@]}" "${B[@]}"; do [[ -z "${seen["$n"]+x}" ]] && { CP_NODES+=("$n"); seen["$n"]=1; }; done
 [[ ${#CP_NODES[@]} -eq 2 ]] || { err "Expected exactly 2 control-plane nodes, got ${#CP_NODES[@]}: ${CP_NODES[*]-}"; exit 1; }
@@ -147,7 +148,7 @@ NODE_A="${CP_NODES[0]}"; NODE_B="${CP_NODES[1]}"
 
 get_internal_ip() {
   local node="$1" addrs ip4 ip6
-  addrs="$($OC_BIN get node "$node" -o jsonpath='{range .status.addresses[?(@.type=="InternalIP")]}{.address}{"\n"}{end}' 2>/dev/null || true)"
+  addrs="$("$OC_BIN" get node "$node" -o jsonpath='{range .status.addresses[?(@.type=="InternalIP")]}{.address}{"\n"}{end}' 2>/dev/null || true)"
   ip4="$(grep -E '^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$' <<<"$addrs" | head -n1 || true)"
   ip6="$(grep -E '^[0-9A-Fa-f:]+$' <<<"$addrs" | grep -vi '^fe80:' | head -n1 || true)"
   [[ -n "$ip4" ]] && echo "$ip4" || echo "$ip6"
@@ -185,7 +186,7 @@ resolve_pcmk_name() {
   if host_run "$CONDUCTOR" "command -v crm_node >/dev/null 2>&1"; then
     host_run "$CONDUCTOR" "crm_node -l" | awk -v n="$n" -v s="$(short "$n")" '$2==n||$2==s{print $2; found=1} END{if(!found) print s}'
   else
-    echo "$(short "$n")"
+    short "$n"
   fi
 }
 PCMK_A="$(resolve_pcmk_name "$NODE_A")"
@@ -195,7 +196,7 @@ log "Mapping: $NODE_A -> $PCMK_A ; $NODE_B -> $PCMK_B"
 # -------- Health/waits --------
 node_ready(){
   local n="$1"
-  local s; s="$($OC_BIN get node "$n" --request-timeout=10s -o jsonpath='{range .status.conditions[?(@.type=="Ready")]}{.status}{end}' 2>/dev/null || true)"
+  local s; s="$("$OC_BIN" get node "$n" --request-timeout=10s -o jsonpath='{range .status.conditions[?(@.type=="Ready")]}{.status}{end}' 2>/dev/null || true)"
   [[ "$s" == *True* ]]
 }
 
@@ -284,7 +285,11 @@ check_daemon_status(){
     fi
   done
 
-  (( ok_all == 1 )) && ok "Daemon Status: corosync, pacemaker, pcsd active/enabled" || return 1
+  if (( ok_all == 1 )); then
+    ok "Daemon Status: corosync, pacemaker, pcsd active/enabled"
+  else
+    return 1
+  fi
 }
 
 # etcd: need 2 started, non-learner voters
@@ -318,10 +323,15 @@ etcd_two_started() {
 }
 
 etcd_ready(){
-  etcd_two_started "$(node_exec_target "$NODE_A")"; local ra=$?
+  etcd_two_started "$(node_exec_target "$NODE_A")"
+  local ra
+  ra=$?
   (( ra==0 )) && return 0
   (( ra==2 )) && return 2
-  etcd_two_started "$(node_exec_target "$NODE_B")"; local rb=$?
+
+  etcd_two_started "$(node_exec_target "$NODE_B")"
+  local rb
+  rb=$?
   (( rb==0 )) && return 0
   (( rb==2 )) && return 2
   return 1
