@@ -104,7 +104,9 @@ _fmt_host(){
 }
 
 ssh_cmd() {
-  local host="$(_fmt_host "$1")"; shift
+  local host
+  host="$(_fmt_host "$1")"
+  shift
   local keyopt=(); [[ -n "$SSH_KEY" ]] && keyopt=(-i "$SSH_KEY")
   timeout "$CMD_EXEC_TIMEOUT_SECS" ssh \
     -o BatchMode=yes -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
@@ -358,7 +360,12 @@ wait_etcd(){
 switch_conductor_for(){
   local target="$1"
   if [[ "$TRANSPORT" == "ssh" ]]; then
-    local want="$([[ "$target" == "$NODE_A" ]] && echo "$IP_A" || echo "$IP_B")"
+   local want
+   if [[ "$target" == "$NODE_A" ]]; then
+     want="$IP_A"
+   else
+     want="$IP_B"
+   fi
     [[ "$CONDUCTOR" == "$want" ]] && CONDUCTOR="$([[ "$target" == "$NODE_A" ]] && echo "$IP_B" || echo "$IP_A")"
   else
     [[ "$CONDUCTOR" == "$target" ]] && CONDUCTOR="$([[ "$target" == "$NODE_A" ]] && echo "$NODE_B" || echo "$NODE_A")"
@@ -404,7 +411,10 @@ dry_run_plan() {
 log "Mode: transport=$TRANSPORT disruptive=$DISRUPTIVE dry-run=$DRY_RUN"
 log "=== Non-disruptive validation ==="
 check_stonith
-pcmkonline "$PCMK_A" && pcmkonline "$PCMK_B" || { err "Both nodes must be ONLINE (Pacemaker)"; exit 2; }
+if ! ( pcmkonline "$PCMK_A" && pcmkonline "$PCMK_B" ); then
+  err "Both nodes must be ONLINE (Pacemaker)"
+  exit 2
+fi
 ok "Both nodes ONLINE"
 check_daemon_status || exit 2
 wait_etcd || exit 2
