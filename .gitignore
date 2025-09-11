@@ -7,3 +7,4 @@ CLAUDE.md
 deploy/openshift-clusters/roles/kcli/kcli-install/defaults/main.yml
 kcli
 kcli/*
+deploy/openshift-clusters/roles/install-dev/files/pull-secret.json
