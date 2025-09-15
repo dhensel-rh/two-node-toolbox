@@ -57,7 +57,7 @@ The deployment process involves updating configuration files and running an Ansi
 - If you provisioned an AWS hypervisor using the [aws-hypervisor](/deploy/aws-hypervisor/) tools, it is recommended to use the "make inventory" option from the deploy directory, which will create a pre-filled inventory file with your AWS instance data. 
 
 #### Config files for dev-scripts
-- In `roles/install-dev/files/`, review `config_XXXXX_example.sh` files and copy them to `config_XXXXX.sh` as needed, removing the `_example` from the filename.
+- In `roles/dev-scripts/install-dev/files/`, review `config_XXXXX_example.sh` files and copy them to `config_XXXXX.sh` as needed, removing the `_example` from the filename.
 - The config file for each topology is slightly different. Sample `config_arbiter_example.sh` and `config_fencing_example.sh` files are provided, ready to use with the AWS dev hypervisor. You can change the variables inside (see Note below), but when copying them, the expected file names are `config_arbiter.sh` and `config_fencing.sh`.
 - The arbiter config file contains separate configuration sections for IPI and Agent-based installations. Use the appropriate section based on your chosen installation method.
 - Unless you're using `OPENSHIFT_CI="True"` to avoid using private images, you should fill CI_TOKEN with your own token. You can get it from https://console-openshift-console.apps.ci.l2s4.p1.openshiftapps.com. Start by clicking your name in the top right and clicking "copy login command." At this point, a new window will open, and you should click on "Display Token." It should now display an API token you can copy over to your profile.
