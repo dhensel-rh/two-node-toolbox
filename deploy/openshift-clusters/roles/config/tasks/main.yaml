@@ -17,3 +17,4 @@
 - name: Set up for git user
   import_role:
     name: git-user
+  tags: git-setup

@@ -14,7 +14,7 @@ The kcli deployment method automates OpenShift two-node cluster creation using *
 - Remote machine requirements (RHEL 9, 64GB RAM, etc.)
 - Optional AWS hypervisor setup
 
-The same prerequisites apply whether using dev-scripts or kcli deployment methods.
+The same prerequisites apply whether using dev-scripts or kcli deployment methods. If you're using a baremetal server not provisioned through the aws-hypervisor directory, please see the appropiate [README](README-external-host.md) to know how to run the init-host.yml playbook
 
 ## 2. Prerequisites
 
@@ -30,6 +30,7 @@ This installs:
 - `community.libvirt`: For libvirt virtualization management  
 - `kubernetes.core`: For Kubernetes resource management
 - `containers.podman`: For container operations
+- `ansible.posix`: Some systems might need this for certain system-level operations
 
 ### Automated Installation
 
@@ -79,7 +80,7 @@ ssh-keygen -t ed25519 -f ~/.ssh/id_ed25519
 
 ## 3. Configuration
 
-The kcli deployment supports multiple configuration approaches with clear variable precedence.
+The kcli deployment supports multiple configuration approaches with clear variable precedence. It is recommended that you create 
 
 ### Configuration Methods
 
@@ -89,7 +90,7 @@ You can configure the deployment using any combination of these methods (in prec
 2. **Playbook vars section**
 3. **Role defaults** (lowest precedence) (`roles/kcli/kcli-install/defaults/main.yml`)
 
-For simple overrides, the command line is recommended. For setting your preferred permanent config, make a copy of [the defaults template](roles/kcli/kcli-install/defaults/main.yml.template) to main.yml and update the values to your preference. This file is not tracked by Git and will persist between TNT updates. 
+For simple overrides, the command line is recommended. For setting your preferred permanent config, make a copy of [the defaults template](roles/kcli/kcli-install/defaults/main.yml.template) to [main.yml](vars/main.yml) and update the values to your preference. This file is not tracked by Git and will persist between TNT updates. 
 
 You can find more information on the official ansible documentation https://docs.ansible.com/ansible/latest/playbook_guide/playbooks_variables.html:
 

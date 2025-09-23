@@ -9,7 +9,9 @@
 - name: Install and configure kcli
   include_tasks: kcli_install.yml
 
-# Use config role for authentication validation
-- name: Validate authentication files
+# Setup user environment and SSH access
+- name: Setup user environment
   include_role:
-    name: config 
+    name: config
+  vars:
+    ansible_skip_tags: git-setup 

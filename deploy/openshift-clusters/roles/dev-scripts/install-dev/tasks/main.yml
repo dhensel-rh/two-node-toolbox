@@ -61,6 +61,7 @@
     validate: bash -e %s
     marker: "# {mark} OPENSHIFT ALIAS BLOCK"
     block: "{{ lookup('template', 'oc_aliases.sh.j2') }}"
+
 - name: Setup proxy configuration
   include_role:
     name: proxy-setup
