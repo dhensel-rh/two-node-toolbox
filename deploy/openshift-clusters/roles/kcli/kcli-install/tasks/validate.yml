@@ -19,17 +19,17 @@
 - name: Validate two-node configuration
   fail:
     msg: "For two-node OpenShift with fencing, ctlplanes must be 2 and workers must be 0"
-  when: ctlplanes != 2 or workers != 0
+  when: ctlplanes | int != 2 or workers | int != 0
 
 - name: Validate memory requirements
   fail:
     msg: "Minimum memory requirement for OpenShift control plane nodes is 16GB (16384 MB)"
-  when: vm_memory < 16384
+  when: vm_memory | int < 16384
 
 - name: Validate disk size requirements
   fail:
     msg: "Minimum disk size requirement for OpenShift nodes is 120GB"
-  when: vm_disk_size < 120
+  when: vm_disk_size | int < 120
 
 - name: Validate OpenShift version format
   fail:
