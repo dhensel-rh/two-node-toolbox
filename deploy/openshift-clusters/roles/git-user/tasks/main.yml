@@ -20,3 +20,4 @@
   template:
     dest: .gitconfig
     src: config.j2
+  ignore_errors: true
