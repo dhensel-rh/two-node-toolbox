@@ -12,12 +12,20 @@
       - virt-viewer
       - libvirt-python3
       - acl
+      - firewalld
     state: present
   become: true
 
 - name: Start and enable libvirtd service
   systemd:
     name: libvirtd
+    state: started
+    enabled: true
+  become: true
+
+- name: Start and enable firewalld service
+  systemd:
+    name: firewalld
     state: started
     enabled: true
   become: true

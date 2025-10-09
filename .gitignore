@@ -4,3 +4,4 @@ deploy/openshift-clusters/inventory-backup/
 .cursorrules
 CLAUDE.md
 deploy/openshift-clusters/vars/kcli.yml
+deploy/openshift-clusters/vars/main.yml

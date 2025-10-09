@@ -7,7 +7,7 @@
 
 - name: Load kcli configuration variables for consistent configuration
   include_vars:
-    file: "{{ playbook_dir }}/vars/kcli.yml"
+    file: "{{ playbook_dir }}/vars/main.yml"
 
 - name: Set default ksushy IP if not defined
   set_fact:
