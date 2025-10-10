@@ -80,15 +80,18 @@ This role follows the same authentication file conventions as the dev-scripts ro
 ### OpenShift Version
 See [defaults](../kcli-install/defaults/main.yml.template) for default values
 
+If you're installing a specific openshift release image, you will need to set the proper channel in ocp_version
 - `ocp_version`: OpenShift version channel
   - "stable": Released versions
   - "ci": Latest development/CI builds (requires CI registry access)
   - "candidate": Release candidates
   - "nightly": Nightly builds
+
+
 - `ocp_tag`: Specific OpenShift version tag 
+
+ >If you're installing a specific openshift release image which is not generally available, you will need to set the proper channel in ocp_version
 - `openshift_release_image`: Optional override for specific release image
-- `ci_token`: CI token for CI builds (required when openshift_ci=false)
-- `openshift_ci`: Set to true to avoid CI_TOKEN (has side effects, default: false)
 
 ### Network Configuration
 
@@ -102,7 +105,7 @@ See [defaults](../kcli-install/defaults/main.yml.template) for default values
 - `bmc_password`: BMC password (default: "admin123")
 - `bmc_driver`: BMC driver type - "redfish" or "ipmi" (default: "redfish")
 - `ksushy_ip`: IP address for ksushy BMC simulator (default: ansible_default_ipv4.address)
-- `ksushy_port`: Port for ksushy BMC simulator (default: 8000)
+- `ksushy_port`: Port for ksushy BMC simulator (default: 9000)
 
 ### Arbiter Configuration (when topology="arbiter")
 
