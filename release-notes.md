@@ -18,7 +18,15 @@
 
 See `deploy/openshift-clusters/README-external-host.md` for detailed usage instructions.
 
----
+
+## Version 0.5.3 - Fencing Validation Tools
+
+#### Fencing Validator Script
+- Added `helpers/fencing_validator.sh` for two-node cluster fencing validation
+- Non-disruptive validation of STONITH configuration, node health, and etcd quorum
+- Support for multiple transport methods (auto-detection, SSH, oc debug)
+- IPv4/IPv6 support with automatic node discovery
+
 
 ## Version 0.5.2 - KCLI Deployment Integration  
 *Release Date: August 2025*
