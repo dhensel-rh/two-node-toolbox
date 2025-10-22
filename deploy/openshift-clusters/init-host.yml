@@ -3,7 +3,7 @@
 # This playbook performs the same initialization tasks as the aws-hypervisor/scripts/init.sh
 # but uses Ansible inventory instead of instance-data files
 
-- hosts: all
+- hosts: metal_machine
   gather_facts: yes
   force_handlers: yes
 

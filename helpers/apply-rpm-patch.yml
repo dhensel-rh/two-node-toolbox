@@ -1,7 +1,6 @@
 ---
 - name: Install RPM package on OpenShift nodes using rpm-ostree
-  hosts: all
-  become: true
+  hosts: "{{ target_hosts | default('all') }}"
   remote_user: core
   tasks:
     - name: Store RPM full path in a registry
@@ -13,8 +12,9 @@
 
     - name: Fail if RPM file does not exist
       fail:
-        msg: "RPM file '{{ rpm_full_path }}' not found."
+        msg: "RPM file '{{ rpm_full_path }}' not found on localhost at: {{ rpm_file.stat.path | default(rpm_full_path) }}"
       when: not rpm_file.stat.exists
+      run_once: true
 
     - name: Copy RPM file to nodes
       copy:
@@ -29,6 +29,7 @@
       register: rpm_ostree_result
       async: 600  # 10 minutes timeout
       poll: 30    # check every 30 seconds
+      become: yes
 
     - name: Display rpm-ostree command output
       debug:
@@ -48,6 +49,7 @@
         post_reboot_delay: 60  # Wait longer after reboot
         test_command: podman exec etcd etcdctl member list
       throttle: 1  # Reboot one node at a time
+      become: yes
 
   vars:
     rpm_full_path: "{{ rpm_full_path | default(lookup('env', 'RPM_FULL_PATH')) }}"

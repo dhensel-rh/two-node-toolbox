@@ -28,6 +28,7 @@ The following programs must be present in your local environment:
 - jq
 - rsync
 - golang
+- ansible
 
 Also:
 - .ssh/config file must exist
@@ -241,6 +242,16 @@ $ make redeploy-cluster
 # Option 2: Manual clean and setup approach
 $ make clean
 $ make arbiter-ipi #(for example)
+```
+
+### Cluster Utilities
+
+```bash
+# Build resource-agents RPM and patch all cluster nodes
+$ make patch-nodes
+
+# Collect cluster logs from all VMs
+$ make get-tnf-logs
 ```
 
 ## Troubleshooting Cluster Management

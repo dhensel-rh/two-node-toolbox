@@ -5,4 +5,11 @@ source "${SCRIPT_DIR}/common.sh"
 
 instance_ip="$(cat "${SCRIPT_DIR}/../${SHARED_DIR}/ssh_user")@$(cat "${SCRIPT_DIR}/../${SHARED_DIR}/public_address")"
 
-ssh "$instance_ip"
+# Use the private key corresponding to the configured public key
+if [[ -n "${SSH_PUBLIC_KEY}" ]]; then
+    # Convert public key path to private key path
+    SSH_PRIVATE_KEY="${SSH_PUBLIC_KEY%.pub}"
+    ssh -i "${SSH_PRIVATE_KEY}" "$instance_ip"
+else
+    ssh "$instance_ip"
+fi

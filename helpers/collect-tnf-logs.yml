@@ -1,0 +1,83 @@
+---
+- name: Collect pacemaker and etcd logs from cluster nodes
+  hosts: cluster_vms
+  remote_user: core
+  gather_facts: yes
+
+  vars:
+    # Number of boots to collect journalctl logs from (default: -1 for current boot only)
+    # Use 0 for all boots, or specific number for that many most recent boots
+    journalctl_boots: 0
+
+  tasks:
+    - name: Set timestamp for log collection
+      set_fact:
+        log_timestamp: "{{ lookup('pipe', 'date +%Y%m%d-%H%M%S') }}"
+      run_once: true
+      delegate_to: localhost
+
+    - name: Ensure base logs directory exists
+      file:
+        path: "{{ playbook_dir }}/../logs"
+        state: directory
+        mode: '0755'
+      run_once: true
+      delegate_to: localhost
+
+    - name: Create timestamped logs subdirectory
+      file:
+        path: "{{ playbook_dir }}/../logs/{{ log_timestamp }}"
+        state: directory
+        mode: '0755'
+      run_once: true
+      delegate_to: localhost
+
+    - name: Collect pacemaker journalctl logs
+      shell: journalctl -u pacemaker --no-pager -b {{ journalctl_boots }}
+      register: pacemaker_logs
+      become: yes
+      failed_when: false
+
+    - name: Save pacemaker logs to local file
+      copy:
+        content: "{{ pacemaker_logs.stdout }}"
+        dest: "{{ playbook_dir }}/../logs/{{ log_timestamp }}/{{ inventory_hostname }}-pacemaker.log"
+      delegate_to: localhost
+      when: pacemaker_logs.rc == 0
+
+    - name: Collect etcd podman logs
+      shell: podman logs etcd
+      register: etcd_logs
+      async: 30  # 30 sec timeout
+      poll: 10
+      failed_when: false
+      become: yes
+
+    - name: Save etcd logs to local file
+      copy:
+        content: |
+          STDOUT:
+          {{ etcd_logs.stdout }}
+
+          STDERR:
+          {{ etcd_logs.stderr }}
+        dest: "{{ playbook_dir }}/../logs/{{ log_timestamp }}/{{ inventory_hostname }}-etcd.log"
+      delegate_to: localhost
+      when: etcd_logs.rc == 0
+
+    - name: Save etcd error logs if command failed
+      copy:
+        content: |
+          Command failed with return code: {{ etcd_logs.rc }}
+          STDERR:
+          {{ etcd_logs.stderr }}
+        dest: "{{ playbook_dir }}/../logs/{{ log_timestamp }}/{{ inventory_hostname }}-etcd-error.log"
+      delegate_to: localhost
+      when: etcd_logs.rc != 0 and etcd_logs.stderr is defined
+
+    - name: Display collection summary
+      debug:
+        msg: |
+          Log collection complete for {{ inventory_hostname }}:
+          - Pacemaker logs: {{ 'collected' if pacemaker_logs.rc == 0 else 'failed' }}
+          - Etcd logs: {{ 'collected' if etcd_logs.rc == 0 else 'failed/timeout' }}

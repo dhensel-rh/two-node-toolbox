@@ -1,5 +1,66 @@
 # Two-Node Toolbox Release Notes
 
+## Version 0.5.5 - Cluster VM Inventory and Playbook Standardization
+*Release Date: October 2025*
+
+### New Features
+
+#### Cluster VM Inventory Access
+- Automatic discovery and inventory updates with cluster VMs after deployment
+- Cluster VMs added to `[cluster_vms]` group with SSH ProxyJump configuration through hypervisor
+- Direct Ansible access to cluster nodes from local machine without requiring direct network access
+- Works with both dev-scripts and kcli deployment methods
+
+**Usage example:**
+```bash
+ansible cluster_vms -m ping -i inventory.ini
+ansible cluster_vms -m shell -a "uptime" -i inventory.ini
+ansible-playbook my-cluster-playbook.yml -i inventory.ini -l cluster_vms
+```
+
+#### Resource Agents Build and Patch Automation
+- New `make patch-nodes` command for building and patching resource-agents on cluster nodes
+- Automated workflow: builds RPM on hypervisor, copies to localhost, patches all cluster nodes
+- Eliminates manual RPM building and distribution steps
+- Includes automated node reboots with etcd health verification
+
+**Usage:**
+```bash
+# From deploy/ directory
+make patch-nodes
+```
+
+#### Cluster Log Collection
+- New `make get-tnf-logs` command for collecting etcd related logs from cluster VMs
+
+**Usage:**
+```bash
+# From deploy/ directory
+make get-tnf-logs
+```
+
+### Improvements
+
+
+
+#### Playbook Host Targeting Standardization
+- All playbooks now consistently use `metal_machine` host group
+- Updated `kcli-install.yml`, `init-host.yml`, and `kcli-redfish.yml` to use `metal_machine`
+- Prevents accidental execution on cluster VMs when using inventory with cluster VM entries
+- Ensures consistent behavior across all deployment playbooks
+
+### Bug Fixes
+
+#### SSH Key Configuration
+- Fixed `make ssh` command to use the configured SSH key from `instance.env`
+- SSH script now correctly derives private key path from configured public key
+- Resolves authentication issues when using non-default SSH keys
+
+### Documentation Updates
+
+- Comprehensive main README rewrite with clear quick-start options for AWS and external servers
+---
+
 ## Version 0.5.4 - External Host Support
 *Release Date: September 2025*
 
@@ -174,8 +235,8 @@ make deploy
 ### New Tools
 
 #### Helper Scripts
-- `helpers/resource-agents-patch.sh` - Shell script for installing RPM packages on all cluster nodes using rpm-ostree
-- `helpers/resource-agents-patch.yml` - Ansible playbook alternative for RPM installation
+- `helpers/apply-rpm-patch.sh` - Shell script for installing RPM packages on all cluster nodes using rpm-ostree
+- `helpers/apply-rpm-patch.yml` - Ansible playbook alternative for RPM installation
 
 ### Documentation
 - Added `helpers/README.md` with usage instructions for both approaches

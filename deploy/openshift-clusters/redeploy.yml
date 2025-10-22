@@ -138,4 +138,8 @@
     - config
     - dev-scripts/install-dev
 
+  post_tasks:
+    - name: Update inventory with cluster VMs
+      include_tasks: roles/common/tasks/update-cluster-inventory.yml
+
   # Cluster state management is now handled by the install-dev role

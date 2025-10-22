@@ -7,3 +7,8 @@ deploy/openshift-clusters/roles/kcli/kcli-install/defaults/main.yml
 deploy/openshift-clusters/roles/install-dev/files/pull-secret.json
 deploy/openshift-clusters/vars/kcli.yml
 deploy/openshift-clusters/vars/main.yml
+deploy/openshift-clusters/roles/kcli/kcli-install/defaults/main.yml
+kcli
+kcli/*
+deploy/openshift-clusters/inventory.ini.*
+logs/*

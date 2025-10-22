@@ -81,12 +81,15 @@
       ansible.builtin.debug:
         msg: "Installation tasks have completed for topology '{{ topology }}'."
 
+    - name: Update inventory with cluster VMs
+      include_tasks: roles/common/tasks/update-cluster-inventory.yml
+
   post_tasks:
     - name: Check if redfish configuration should be offered
       block:
         - name: Get OpenShift cluster version
           ansible.builtin.shell: |
-            source ./proxy.env && oc version -o json
+            source ./proxy.env && oc version
           register: oc_version_result
           delegate_to: localhost
           run_once: true
@@ -95,10 +98,11 @@
 
         - name: Parse OpenShift version
           set_fact:
-            ocp_version: "{{ (oc_version_result.stdout | from_json).openshiftVersion }}"
+            ocp_version: "{{ oc_version_result.stdout | regex_search('Server Version: (.+)', '\\1') | first }}"
           when:
             - oc_version_result.rc == 0
             - oc_version_result.stdout is defined
+            - oc_version_result.stdout | length > 0
           delegate_to: localhost
           run_once: true
 

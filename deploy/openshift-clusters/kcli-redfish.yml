@@ -1,6 +1,6 @@
 ---
 - name: Configure PCS Stonith for kcli-deployed clusters using simulated Redfish BMC
-  hosts: all
+  hosts: metal_machine
   gather_facts: false
 
   # Ensure the kubernetes.core collection is installed:

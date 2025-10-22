@@ -60,11 +60,10 @@ done
 echo -e "\nRPM installation completed on all nodes."
 echo -e "\nIMPORTANT: The nodes need to be rebooted to apply the rpm-ostree changes."
 echo "Plan the reboots carefully to maintain cluster availability:"
-echo "- Consider rebooting nodes one at a time"
-echo "- Wait for each node to become Ready before rebooting the next"
+echo "- Reboot nodes one at a time"
+echo "- Wait for etcd to be healthy on each node before rebooting the next"
 echo "- Monitor cluster health during the process"
-echo -e "\nReboot commands (run manually when ready):"
-for IP in "${NODE_IPS[@]}"; do
-    echo "  ssh core@$IP sudo systemctl reboot"
-done
+echo -e "\nAfter rebooting each node, verify etcd health with:"
+echo "  ssh core@<NODE_IP> podman exec etcd etcdctl member list"
+echo -e "\nWait for the command to succeed before proceeding to reboot the next node."
 

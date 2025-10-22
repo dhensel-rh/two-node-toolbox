@@ -52,9 +52,11 @@ The deployment process involves updating configuration files and running an Ansi
 ### Step 1: Update Configurations
 
 #### Inventory file
-- Copy `inventory.ini.sample` to `inventory.ini`: Edit this file to include the user and IP address of your remote machine. The ansible_ssh_extra_args are optional, but useful to keep alive the process during long installation steps.  If you are using your own server, you might need to provide a sudo password in the `ansible_become_password` variable.   
-- Example: `ec2-user@100.100.100.100 ansible_ssh_extra_args='-o ServerAliveInterval=30 -o ServerAliveCountMax=120'`. 
-- If you provisioned an AWS hypervisor using the [aws-hypervisor](/deploy/aws-hypervisor/) tools, it is recommended to use the "make inventory" option from the deploy directory, which will create a pre-filled inventory file with your AWS instance data. 
+- Copy `inventory.ini.sample` to `inventory.ini`: Edit this file to include the user and IP address of your remote machine. The ansible_ssh_extra_args are optional, but useful to keep alive the process during long installation steps.  If you are using your own server, you might need to provide a sudo password in the `ansible_become_password` variable.
+- Example: `ec2-user@100.100.100.100 ansible_ssh_extra_args='-o ServerAliveInterval=30 -o ServerAliveCountMax=120'`.
+- If you provisioned an AWS hypervisor using the [aws-hypervisor](/deploy/aws-hypervisor/) tools, it is recommended to use the "make inventory" option from the deploy directory, which will create a pre-filled inventory file with your AWS instance data.
+
+**Tip**: To skip the `-i inventory.ini` argument in all ansible commands, copy the inventory file to Ansible's default location (`/etc/ansible/hosts` on Linux, may vary on other operating systems). 
 
 #### Config files for dev-scripts
 - In `roles/dev-scripts/install-dev/files/`, review `config_XXXXX_example.sh` files and copy them to `config_XXXXX.sh` as needed, removing the `_example` from the filename.
@@ -120,6 +122,40 @@ cat ~/auth/kubeadmin-password
 The deployment automatically creates a symlink from `~/.kube/config` to `~/auth/kubeconfig`, so `oc` commands work without setting the `KUBECONFIG` environment variable.
 
 **Note**: This direct access only works from within the hypervisor. For access from your local machine, use the proxy setup described above.
+
+### Cluster VM Inventory Access
+
+After successful cluster deployment, the inventory file is automatically updated to include the cluster VMs. This allows you to run Ansible playbooks directly on the cluster nodes from your local machine.
+
+The deployment automatically discovers running cluster VMs and adds them to the inventory with ProxyJump configuration through the hypervisor. Your `inventory.ini` will be updated to include:
+
+```ini
+[metal_machine]
+ec2-user@44.196.182.72
+
+[cluster_vms]
+tnt-cluster-ctlplane-0 ansible_host=192.168.111.10
+tnt-cluster-ctlplane-1 ansible_host=192.168.111.11
+
+[cluster_vms:vars]
+ansible_ssh_common_args="-o ProxyJump=ec2-user@44.196.182.72 ..."
+ansible_user=core
+```
+
+You can now run Ansible commands on cluster VMs from your local machine:
+
+```bash
+# Ping all cluster VMs
+ansible cluster_vms -m ping -i inventory.ini
+
+# Run ad-hoc commands
+ansible cluster_vms -m shell -a "uptime" -i inventory.ini
+
+# Run playbooks targeting cluster VMs (use -l cluster_vms to limit to automatically added VMs only)
+ansible-playbook my-cluster-playbook.yml -i inventory.ini -l cluster_vms
+```
+
+The VMs are automatically accessible via SSH ProxyJump through the hypervisor, so you don't need direct network access to the cluster VMs.
 
 ### Optional: Accessing the Console WebUI
 

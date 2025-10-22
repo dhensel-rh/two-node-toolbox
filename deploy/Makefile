@@ -55,6 +55,11 @@ arbiter-ipi:
 arbiter-agent:
 	@./openshift-clusters/scripts/deploy-arbiter-agent.sh
 
+patch-nodes:
+	@./openshift-clusters/scripts/patch-nodes.sh
+get-tnf-logs:
+	@./openshift-clusters/scripts/get-tnf-logs.sh
+
 help:
 	@echo "Available commands:"
 	@echo ""
@@ -82,4 +87,8 @@ help:
 	@echo "  startup-cluster      - Start up OpenShift cluster VMs and proxy container"
 	@echo "  clean                - Clean OpenShift cluster using dev-scripts clean target"
 	@echo "  full-clean           - Fully clean instance cache and OpenShift cluster using dev-scripts realclean target"
+	@echo "  patch-nodes          - Build resource-agents RPM and patch cluster nodes (default version: 4.11)"
+	@echo ""
+	@echo "Cluster Utilities:"
+	@echo "  get-tnf-logs         - Collect pacemaker and etcd logs from cluster nodes"
 

@@ -42,6 +42,8 @@ ansible_become_password=""
 
 **Important**: Replace `your-host-ip` with the actual IP address or hostname of your RHEL system.
 
+**Tip**: To skip the `-i inventory.ini` argument in all ansible commands, copy the inventory file to Ansible's default location (`/etc/ansible/hosts` on Linux, may vary on other operating systems).
+
 ### 2. Configure RHSM Credentials
 
 You have several options for providing Red Hat subscription credentials:
@@ -140,3 +142,14 @@ For fencing topology using kcli:
 ```bash
 ansible-playbook kcli-install.yml -i inventory.ini
 ```
+
+## Post-Deployment Features
+
+### Cluster VM Inventory Access
+
+After successful cluster deployment (using either setup.yml or kcli-install.yml), the inventory file is automatically updated to include the cluster VMs. This allows you to run Ansible playbooks directly on the cluster nodes from your local machine.
+
+The deployment automatically discovers running cluster VMs and adds them to the inventory with ProxyJump configuration through the hypervisor. For more details on using this feature, see:
+
+- [Main README - Cluster VM Inventory Access](README.md#cluster-vm-inventory-access)
+- [kcli README - Cluster VM Inventory Access](README-kcli.md#cluster-vm-inventory-access)

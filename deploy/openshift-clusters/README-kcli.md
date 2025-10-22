@@ -14,7 +14,9 @@ The kcli deployment method automates OpenShift two-node cluster creation using *
 - Remote machine requirements (RHEL 9, 64GB RAM, etc.)
 - Optional AWS hypervisor setup
 
-The same prerequisites apply whether using dev-scripts or kcli deployment methods. If you're using a baremetal server not provisioned through the aws-hypervisor directory, please see the appropiate [README](README-external-host.md) to know how to run the init-host.yml playbook
+The same prerequisites apply whether using dev-scripts or kcli deployment methods. If you're using a baremetal server not provisioned through the aws-hypervisor directory, please see the appropiate [README](README-external-host.md) to know how to run the init-host.yml playbook.
+
+**Tip**: To skip the `-i inventory.ini` argument in all ansible commands, copy the inventory file to Ansible's default location (`/etc/ansible/hosts` on Linux, may vary on other operating systems).
 
 ## 2. Prerequisites
 
@@ -198,6 +200,40 @@ cat ~/auth/kubeadmin-password
 The deployment automatically creates a symlink from `~/.kube/config` to `~/auth/kubeconfig`, so `oc` commands work without setting the `KUBECONFIG` environment variable.
 
 **Note**: This direct access only works from within the hypervisor. For access from your local machine, use the proxy setup described above.
+
+### Cluster VM Inventory Access
+
+After successful cluster deployment, the inventory file is automatically updated to include the cluster VMs. This allows you to run Ansible playbooks directly on the cluster nodes from your local machine.
+
+The deployment automatically discovers running cluster VMs and adds them to the inventory with ProxyJump configuration through the hypervisor. Your `inventory.ini` will be updated to include:
+
+```ini
+[metal_machine]
+ec2-user@44.196.182.72
+
+[cluster_vms]
+tnt-cluster-ctlplane-0 ansible_host=192.168.122.10
+tnt-cluster-ctlplane-1 ansible_host=192.168.122.11
+
+[cluster_vms:vars]
+ansible_ssh_common_args="-o ProxyJump=ec2-user@44.196.182.72 ..."
+ansible_user=core
+```
+
+You can now run Ansible commands on cluster VMs from your local machine:
+
+```bash
+# Ping all cluster VMs
+ansible cluster_vms -m ping -i inventory.ini
+
+# Run ad-hoc commands
+ansible cluster_vms -m shell -a "uptime" -i inventory.ini
+
+# Run playbooks targeting cluster VMs
+ansible-playbook my-cluster-playbook.yml -i inventory.ini
+```
+
+The VMs are automatically accessible via SSH ProxyJump through the hypervisor, so you don't need direct network access to the cluster VMs.
 
 ### CI Builds
 

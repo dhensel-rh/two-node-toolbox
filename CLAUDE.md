@@ -29,6 +29,7 @@ make shutdown-cluster   # Shutdown cluster VMs
 make startup-cluster    # Start cluster VMs and proxy
 make clean             # Clean OpenShift cluster
 make full-clean        # Complete cleanup including cache
+make patch-nodes        # Build resource-agents RPM and patch cluster nodes
 
 # Utilities
 make ssh               # SSH into EC2 instance
