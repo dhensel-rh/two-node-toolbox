@@ -1,0 +1,115 @@
+---
+# Install ACM or MCE operator with auto-detected channel
+
+- name: Set operator configuration
+  set_fact:
+    op_config: "{{ operator_config[hub_operator] }}"
+
+- name: Create operator namespace
+  shell: |
+    oc create namespace {{ op_config.namespace }} 2>/dev/null || echo "Namespace already exists"
+  register: ns_result
+  changed_when: "'created' in ns_result.stdout"
+
+- name: Create OperatorGroup
+  shell: |
+    oc apply -f - <<'EOF'
+    apiVersion: operators.coreos.com/v1
+    kind: OperatorGroup
+    metadata:
+      name: {{ op_config.subscription_name }}
+      namespace: {{ op_config.namespace }}
+    spec:
+      targetNamespaces:
+        - {{ op_config.namespace }}
+    EOF
+  register: og_result
+  changed_when: "'created' in og_result.stdout"
+
+- name: Determine operator channel
+  block:
+    - name: Auto-detect channel from packagemanifest
+      shell: |
+        oc get packagemanifest {{ op_config.package_name }} \
+          -o jsonpath='{.status.defaultChannel}'
+      register: detected_channel
+      changed_when: false
+
+    - name: Set operator channel fact
+      set_fact:
+        operator_channel: "{{ detected_channel.stdout }}"
+  when: (hub_operator == 'acm' and acm_channel == 'auto') or
+        (hub_operator == 'mce' and mce_channel == 'auto')
+
+- name: Use user-specified channel
+  set_fact:
+    operator_channel: "{{ acm_channel if hub_operator == 'acm' else mce_channel }}"
+  when: (hub_operator == 'acm' and acm_channel != 'auto') or
+        (hub_operator == 'mce' and mce_channel != 'auto')
+
+- name: Display operator channel
+  debug:
+    msg: "Installing {{ hub_operator | upper }} with channel: {{ operator_channel }}"
+
+- name: Create operator Subscription
+  template:
+    src: operator-subscription.yml.j2
+    dest: /tmp/operator-subscription.yml
+    mode: '0644'
+
+- name: Apply operator Subscription
+  shell: |
+    oc apply -f /tmp/operator-subscription.yml
+  register: sub_result
+  changed_when: "'created' in sub_result.stdout"
+
+- name: Wait for operator CSV to succeed
+  shell: |
+    oc get csv -n {{ op_config.namespace }} --no-headers 2>/dev/null \
+      | grep {{ op_config.package_name }} \
+      | grep -q Succeeded
+  register: csv_result
+  until: csv_result.rc == 0
+  retries: "{{ (acm_csv_timeout / 15) | int }}"
+  delay: 15
+
+- name: Display operator install result
+  shell: |
+    oc get csv -n {{ op_config.namespace }} --no-headers \
+      | grep {{ op_config.package_name }}
+  register: csv_info
+  changed_when: false
+
+- name: Show installed operator
+  debug:
+    msg: "{{ csv_info.stdout }}"
+
+# Create MultiClusterHub (for ACM) or MultiClusterEngine (for MCE)
+- name: Create MultiClusterHub CR
+  template:
+    src: multiclusterhub.yml.j2
+    dest: /tmp/multiclusterhub.yml
+    mode: '0644'
+  when: hub_operator == 'acm'
+
+- name: Apply MultiClusterHub CR
+  shell: |
+    oc apply -f /tmp/multiclusterhub.yml
+  register: mch_result
+  changed_when: "'created' in mch_result.stdout"
+  when: hub_operator == 'acm'
+
+- name: Wait for MultiClusterHub to reach Running phase
+  shell: |
+    oc get multiclusterhub multiclusterhub -n {{ op_config.namespace }} \
+      -o jsonpath='{.status.phase}'
+  register: mch_phase
+  until: mch_phase.stdout == 'Running'
+  retries: "{{ (multiclusterhub_timeout / 30) | int }}"
+  delay: 30
+  when: hub_operator == 'acm'
+
+- name: Display MultiClusterHub status
+  debug:
+    msg: "MultiClusterHub phase: {{ mch_phase.stdout }}"
+  when: hub_operator == 'acm'

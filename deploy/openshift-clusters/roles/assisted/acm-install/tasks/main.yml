@@ -1,0 +1,23 @@
+---
+# Install ACM/MCE + assisted service + enable TNF support on hub cluster
+
+- block:
+    - name: Validate hub cluster health
+      include_tasks: validate.yml
+
+    - name: Provision storage for assisted service
+      include_tasks: storage.yml
+
+    - name: Install {{ hub_operator | upper }} operator
+      include_tasks: install-operator.yml
+
+    - name: Create AgentServiceConfig
+      include_tasks: agent-service-config.yml
+
+    - name: Enable TNF cluster support in assisted service
+      include_tasks: enable-tnf.yml
+
+    - name: Enable BMO watch all namespaces and disable provisioning network
+      include_tasks: enable-watch-all-namespaces.yml
+  environment:
+    KUBECONFIG: "{{ hub_kubeconfig }}"

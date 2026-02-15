@@ -1,0 +1,101 @@
+---
+# Create spoke cluster resources on hub: namespace, secrets, ClusterDeployment,
+# AgentClusterInstall, InfraEnv, ClusterImageSet
+
+- name: Get hub release image for spoke
+  shell: |
+    oc get clusterversion version -o jsonpath='{.status.desired.image}'
+  register: hub_release_image
+  changed_when: false
+
+- name: Get hub OCP version
+  shell: |
+    oc get clusterversion version -o jsonpath='{.status.desired.version}' | cut -d. -f1-2
+  register: hub_ocp_version
+  changed_when: false
+
+- name: Set effective spoke release image
+  set_fact:
+    effective_release_image: >-
+      {{ hub_release_image.stdout if spoke_release_image == 'auto'
+         else spoke_release_image }}
+    effective_ocp_version: "{{ hub_ocp_version.stdout }}"
+
+- name: Get SSH public key
+  shell: |
+    cat ~/.ssh/id_rsa.pub
+  register: ssh_pub_key
+  changed_when: false
+
+- name: Create spoke namespace
+  shell: |
+    oc create namespace {{ spoke_cluster_name }} 2>/dev/null || echo "Namespace already exists"
+  register: ns_result
+  changed_when: "'created' in ns_result.stdout"
+
+- name: Create spoke pull secret
+  shell: |
+    oc get secret {{ spoke_cluster_name }}-pull-secret -n {{ spoke_cluster_name }} 2>/dev/null \
+      && echo "Already exists" \
+      || oc create secret generic {{ spoke_cluster_name }}-pull-secret \
+           -n {{ spoke_cluster_name }} \
+           --from-file=.dockerconfigjson={{ pull_secret_path }} \
+           --type=kubernetes.io/dockerconfigjson
+  register: ps_result
+  changed_when: "'created' in ps_result.stdout"
+
+- name: Create ClusterImageSet
+  template:
+    src: clusterimageset.yml.j2
+    dest: /tmp/clusterimageset.yml
+    mode: '0644'
+
+- name: Apply ClusterImageSet
+  shell: |
+    oc apply -f /tmp/clusterimageset.yml
+  register: cis_result
+  changed_when: "'created' in cis_result.stdout"
+
+- name: Create ClusterDeployment
+  template:
+    src: clusterdeployment.yml.j2
+    dest: /tmp/clusterdeployment.yml
+    mode: '0644'
+
+- name: Apply ClusterDeployment
+  shell: |
+    oc apply -f /tmp/clusterdeployment.yml
+  register: cd_result
+  changed_when: "'created' in cd_result.stdout"
+
+- name: Create AgentClusterInstall
+  template:
+    src: agentclusterinstall.yml.j2
+    dest: /tmp/agentclusterinstall.yml
+    mode: '0644'
+
+- name: Apply AgentClusterInstall
+  shell: |
+    oc apply -f /tmp/agentclusterinstall.yml
+  register: aci_result
+  changed_when: "'created' in aci_result.stdout"
+
+- name: Create InfraEnv
+  template:
+    src: infraenv.yml.j2
+    dest: /tmp/infraenv.yml
+    mode: '0644'
+
+- name: Apply InfraEnv
+  shell: |
+    oc apply -f /tmp/infraenv.yml
+  register: ie_result
+  changed_when: "'created' in ie_result.stdout"
+
+- name: Display cluster resources status
+  debug:
+    msg: >-
+      Spoke cluster resources created: ClusterImageSet={{ effective_ocp_version }}.0,
+      ClusterDeployment={{ spoke_cluster_name }},
+      AgentClusterInstall={{ spoke_cluster_name }},
+      InfraEnv={{ spoke_cluster_name }}

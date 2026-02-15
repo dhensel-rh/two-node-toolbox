@@ -1,0 +1,108 @@
+---
+# Deploy a spoke TNF cluster via ACM/assisted installer on an existing hub cluster.
+#
+# Prerequisites:
+#   - vars/assisted.yml exists (copy from vars/assisted.yml.template)
+#
+# Usage:
+#   make deploy fencing-assisted
+
+- hosts: metal_machine
+  gather_facts: yes
+
+  vars:
+    topology: fencing
+    interactive_mode: false
+
+  vars_files:
+    - vars/assisted.yml
+
+  pre_tasks:
+    - name: Check that proxy.env exists (hub must be deployed first)
+      stat:
+        path: "{{ playbook_dir }}/proxy.env"
+      delegate_to: localhost
+      register: proxy_env_check
+
+    - name: Fail if proxy.env is missing
+      fail:
+        msg: >-
+          proxy.env not found. The hub cluster must be deployed first
+          using 'make deploy fencing-ipi'. proxy.env is required for
+          cluster access.
+      when: not proxy_env_check.stat.exists
+
+    - name: Check that hub kubeconfig exists
+      stat:
+        path: "{{ ansible_user_dir }}/auth/kubeconfig"
+      register: hub_kubeconfig_check
+
+    - name: Fail if hub kubeconfig is missing
+      fail:
+        msg: >-
+          Hub kubeconfig not found at ~/auth/kubeconfig.
+          The hub cluster must be deployed first.
+      when: not hub_kubeconfig_check.stat.exists
+
+    - name: Set hub KUBECONFIG path
+      set_fact:
+        hub_kubeconfig: "{{ ansible_user_dir }}/auth/kubeconfig"
+
+    - name: Preserve hub proxy.env as hub-proxy.env
+      copy:
+        src: "{{ playbook_dir }}/proxy.env"
+        dest: "{{ playbook_dir }}/hub-proxy.env"
+        remote_src: no
+        backup: no
+      delegate_to: localhost
+
+    - name: Display assisted installer configuration
+      debug:
+        msg: |
+          Assisted Installer Configuration:
+            Hub operator: {{ hub_operator }}
+            ACM/MCE channel: {{ acm_channel if hub_operator == 'acm' else mce_channel }}
+            Spoke cluster: {{ spoke_cluster_name }}.{{ spoke_base_domain }}
+            Spoke release image: {{ spoke_release_image }}
+            Spoke VMs: {{ spoke_ctlplanes }}x ({{ spoke_vm_vcpus }} vCPUs, {{ spoke_vm_memory }}MB RAM, {{ spoke_vm_disk_size }}GB disk)
+            Spoke network: {{ spoke_network_cidr }}
+            API VIP: {{ spoke_api_vip }}
+            Ingress VIP: {{ spoke_ingress_vip }}
+            Storage method: {{ assisted_storage_method }}
+            Force cleanup: {{ force_cleanup }}
+
+  roles:
+    - role: assisted/acm-install
+    - role: assisted/assisted-spoke
+
+  post_tasks:
+    - name: Setup proxy access for spoke cluster
+      include_role:
+        name: proxy-setup
+      vars:
+        kubeconfig_path: "{{ spoke_kubeconfig_path }}"
+        kubeadmin_password_path: "{{ spoke_kubeadmin_password_path }}"
+
+    - name: Update cluster inventory with spoke VMs
+      include_role:
+        name: common
+        tasks_from: update-cluster-inventory
+      vars:
+        test_cluster_name: "{{ spoke_cluster_name }}"
+
+    - name: Display deployment summary
+      debug:
+        msg: |
+          Spoke TNF cluster deployed successfully!
+
+          Spoke credentials:
+            Kubeconfig: {{ spoke_kubeconfig_path }}
+            Admin password: {{ spoke_kubeadmin_password_path }}
+
+          Access spoke cluster:
+            source proxy.env
+            KUBECONFIG={{ spoke_kubeconfig_path }} oc get nodes
+
+          Access hub cluster:
+            source hub-proxy.env
+            KUBECONFIG=~/auth/kubeconfig oc get nodes

@@ -1,0 +1,42 @@
+---
+# Default variables for assisted-spoke role
+
+# Hub kubeconfig path (set by playbook pre_tasks, fallback to ansible_user_dir)
+hub_kubeconfig: "{{ ansible_user_dir }}/auth/kubeconfig"
+
+# Spoke cluster identity
+spoke_cluster_name: spoke-tnf
+spoke_base_domain: example.com
+
+# Spoke OCP version - "auto" uses hub release image
+spoke_release_image: "auto"
+
+# Spoke VM specifications
+spoke_vm_memory: 32768
+spoke_vm_vcpus: 4
+spoke_vm_disk_size: 120
+spoke_ctlplanes: 2
+
+# Spoke network
+spoke_network_cidr: "192.168.125.0/24"
+spoke_api_vip: "192.168.125.5"
+spoke_ingress_vip: "192.168.125.10"
+spoke_cluster_network_cidr: "10.132.0.0/14"
+spoke_service_network_cidr: "172.31.0.0/16"
+
+# BMC / sushy-tools
+spoke_bmc_user: admin
+spoke_bmc_password: password
+spoke_ksushy_ip: "192.168.111.1"
+spoke_ksushy_port: 8000
+
+# Deployment options
+force_cleanup: false
+
+# Timeouts (seconds)
+spoke_install_timeout: 3600
+spoke_agent_register_timeout: 900
+spoke_credentials_timeout: 1800
+
+# Hub network CIDR (for cross-bridge nftables rules)
+hub_network_cidr: "192.168.111.0/24"

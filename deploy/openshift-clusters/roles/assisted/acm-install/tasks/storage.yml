@@ -1,0 +1,62 @@
+---
+# Provision hostPath storage for assisted service
+# Requires chmod 777 (non-root containers) + SELinux context fix on both nodes
+
+- name: Create StorageClass and PersistentVolumes for assisted service
+  shell: |
+    oc apply -f - <<'EOF'
+    apiVersion: v1
+    kind: PersistentVolume
+    metadata:
+      name: assisted-pv-images
+    spec:
+      capacity:
+        storage: {{ assisted_images_size }}
+      accessModes: [ReadWriteOnce]
+      hostPath:
+        path: {{ assisted_images_path }}
+      storageClassName: {{ assisted_storage_class }}
+    ---
+    apiVersion: v1
+    kind: PersistentVolume
+    metadata:
+      name: assisted-pv-db
+    spec:
+      capacity:
+        storage: {{ assisted_db_size }}
+      accessModes: [ReadWriteOnce]
+      hostPath:
+        path: {{ assisted_db_path }}
+      storageClassName: {{ assisted_storage_class }}
+    ---
+    apiVersion: storage.k8s.io/v1
+    kind: StorageClass
+    metadata:
+      name: {{ assisted_storage_class }}
+    provisioner: kubernetes.io/no-provisioner
+    volumeBindingMode: WaitForFirstConsumer
+    EOF
+  register: storage_result
+  changed_when: "'created' in storage_result.stdout"
+
+- name: Get hub cluster node names
+  shell: |
+    oc get nodes --no-headers -o custom-columns=NAME:.metadata.name
+  register: hub_nodes
+  changed_when: false
+
+- name: Fix hostPath permissions and SELinux context on each hub node
+  shell: |
+    oc debug node/{{ item }} -- chroot /host bash -c "
+      mkdir -p {{ assisted_images_path }} {{ assisted_db_path }}
+      rm -rf {{ assisted_images_path }}/* {{ assisted_db_path }}/*
+      chmod 777 {{ assisted_images_path }} {{ assisted_db_path }}
+      chcon -Rt container_file_t {{ assisted_images_path }} {{ assisted_db_path }}
+    "
+  loop: "{{ hub_nodes.stdout_lines }}"
+  register: selinux_fix
+  changed_when: true
+
+- name: Display storage setup result
+  debug:
+    msg: "Storage provisioned: hostPath PVs with permissions and SELinux fix on {{ hub_nodes.stdout_lines | length }} nodes"

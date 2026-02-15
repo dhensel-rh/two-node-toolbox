@@ -1,0 +1,22 @@
+apiVersion: extensions.hive.openshift.io/v1beta1
+kind: AgentClusterInstall
+metadata:
+  name: {{ spoke_cluster_name }}
+  namespace: {{ spoke_cluster_name }}
+spec:
+  clusterDeploymentRef:
+    name: {{ spoke_cluster_name }}
+  imageSetRef:
+    name: "{{ effective_ocp_version }}.0"
+  apiVIP: "{{ spoke_api_vip }}"
+  ingressVIP: "{{ spoke_ingress_vip }}"
+  platformType: BareMetal
+  networking:
+    clusterNetwork:
+    - cidr: "{{ spoke_cluster_network_cidr }}"
+      hostPrefix: 23
+    serviceNetwork:
+    - "{{ spoke_service_network_cidr }}"
+  provisionRequirements:
+    controlPlaneAgents: {{ spoke_ctlplanes }}
+  sshPublicKey: "{{ ssh_pub_key.stdout }}"

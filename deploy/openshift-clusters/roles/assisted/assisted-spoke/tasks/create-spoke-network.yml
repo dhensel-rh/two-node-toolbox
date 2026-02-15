@@ -1,0 +1,48 @@
+---
+# Create dedicated libvirt network for spoke cluster with DNS for api/apps VIPs
+# Then add cross-bridge nftables FORWARD rules for spoke<->hub connectivity
+
+- name: Check if spoke network already exists
+  shell: |
+    sudo virsh net-info {{ spoke_network_name }} 2>/dev/null && echo "EXISTS" || echo "NOT_FOUND"
+  register: net_check
+  changed_when: false
+
+- name: Create spoke libvirt network definition
+  template:
+    src: spoke-network.xml.j2
+    dest: /tmp/spoke-network.xml
+    mode: '0644'
+  when: "'NOT_FOUND' in net_check.stdout"
+
+- name: Define spoke libvirt network
+  shell: |
+    sudo virsh net-define /tmp/spoke-network.xml
+  when: "'NOT_FOUND' in net_check.stdout"
+
+- name: Start spoke libvirt network
+  shell: |
+    sudo virsh net-start {{ spoke_network_name }} 2>/dev/null || true
+  changed_when: true
+
+- name: Set spoke libvirt network to autostart
+  shell: |
+    sudo virsh net-autostart {{ spoke_network_name }}
+  changed_when: true
+
+- name: Add cross-bridge nftables FORWARD rules for spoke<->hub connectivity
+  shell: |
+    # Check if rules already exist
+    if sudo nft list chain ip filter FORWARD 2>/dev/null | grep -q "{{ spoke_network_cidr }}.*{{ hub_network_cidr }}"; then
+      echo "Rules already exist"
+    else
+      sudo nft insert rule ip filter FORWARD ip saddr {{ spoke_network_cidr }} ip daddr {{ hub_network_cidr }} accept
+      sudo nft insert rule ip filter FORWARD ip saddr {{ hub_network_cidr }} ip daddr {{ spoke_network_cidr }} accept
+      echo "Rules added"
+    fi
+  register: nft_result
+  changed_when: "'added' in nft_result.stdout"
+
+- name: Display network setup result
+  debug:
+    msg: "Spoke network '{{ spoke_network_name }}' on {{ spoke_network_cidr }} ready, cross-bridge rules: {{ nft_result.stdout | trim }}"

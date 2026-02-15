@@ -1,0 +1,29 @@
+<network xmlns:dnsmasq="http://libvirt.org/schemas/network/dnsmasq/1.0">
+  <name>{{ spoke_network_name }}</name>
+  <forward mode="nat">
+    <nat>
+      <port start="1024" end="65535"/>
+    </nat>
+  </forward>
+  <bridge name="{{ spoke_network_name }}" stp="on" delay="0"/>
+  <domain name="{{ spoke_cluster_name }}.{{ spoke_base_domain }}" localOnly="yes"/>
+  <dns enable="yes">
+    <host ip="{{ spoke_ingress_vip }}">
+      <hostname>apps.{{ spoke_cluster_name }}.{{ spoke_base_domain }}</hostname>
+    </host>
+    <host ip="{{ spoke_api_vip }}">
+      <hostname>api.{{ spoke_cluster_name }}.{{ spoke_base_domain }}</hostname>
+    </host>
+  </dns>
+  <ip family="ipv4" address="{{ spoke_network_gateway }}" prefix="{{ spoke_network_prefix }}">
+    <dhcp>
+      <range start="{{ spoke_dhcp_start }}" end="{{ spoke_dhcp_end }}">
+        <lease expiry="60" unit="minutes"/>
+      </range>
+    </dhcp>
+  </ip>
+  <dnsmasq:options>
+    <dnsmasq:option value="address=/api.{{ spoke_cluster_name }}.{{ spoke_base_domain }}/{{ spoke_api_vip }}"/>
+    <dnsmasq:option value="address=/.apps.{{ spoke_cluster_name }}.{{ spoke_base_domain }}/{{ spoke_ingress_vip }}"/>
+  </dnsmasq:options>
+</network>

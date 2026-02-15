@@ -76,6 +76,10 @@ arbiter-kcli:
 fencing-kcli:
 	@./openshift-clusters/scripts/deploy-cluster.sh --topology fencing --method kcli
 
+fencing-assisted:
+	@$(MAKE) fencing-ipi
+	@./openshift-clusters/scripts/deploy-fencing-assisted.sh
+
 patch-nodes:
 	@./openshift-clusters/scripts/patch-nodes.sh
 get-tnf-logs:
@@ -107,6 +111,7 @@ help:
 	@echo "  arbiter-agent        - Deploy arbiter Agent cluster (non-interactive)"
 	@echo "  arbiter-kcli         - Deploy arbiter cluster using kcli (non-interactive)"
 	@echo "  fencing-kcli         - Deploy fencing cluster using kcli (non-interactive)"
+	@echo "  fencing-assisted     - Deploy hub + spoke TNF cluster via assisted installer"
 	@echo ""
 	@echo "OpenShift Cluster Management:"
 	@echo "  redeploy-cluster     - Redeploy OpenShift cluster using dev-scripts make redeploy"

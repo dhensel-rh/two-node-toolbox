@@ -1,0 +1,22 @@
+apiVersion: agent-install.openshift.io/v1beta1
+kind: AgentServiceConfig
+metadata:
+  name: agent
+spec:
+  databaseStorage:
+    storageClassName: {{ assisted_storage_class }}
+    accessModes: [ReadWriteOnce]
+    resources:
+      requests:
+        storage: {{ assisted_db_size }}
+  filesystemStorage:
+    storageClassName: {{ assisted_storage_class }}
+    accessModes: [ReadWriteOnce]
+    resources:
+      requests:
+        storage: {{ assisted_images_size }}
+  osImages:
+  - cpuArchitecture: x86_64
+    openshiftVersion: "{{ hub_ocp_version.stdout }}"
+    url: "{{ rhcos_iso_url }}"
+    version: "{{ rhcos_version }}"

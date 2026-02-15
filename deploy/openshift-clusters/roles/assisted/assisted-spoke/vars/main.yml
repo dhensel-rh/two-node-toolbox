@@ -1,0 +1,21 @@
+---
+# Role-internal variables
+
+# Derived from spoke_network_cidr
+spoke_network_gateway: "{{ spoke_network_cidr | ansible.utils.ipaddr('1') | ansible.utils.ipaddr('address') }}"
+spoke_dhcp_start: "{{ spoke_network_cidr | ansible.utils.ipaddr('50') | ansible.utils.ipaddr('address') }}"
+spoke_dhcp_end: "{{ spoke_network_cidr | ansible.utils.ipaddr('150') | ansible.utils.ipaddr('address') }}"
+spoke_network_prefix: "{{ spoke_network_cidr | ansible.utils.ipaddr('prefix') }}"
+
+# Libvirt network name (derived from spoke cluster name)
+spoke_network_name: "{{ spoke_cluster_name }}"
+
+# Pull secret location (dev-scripts standard path)
+pull_secret_path: /opt/dev-scripts/pull_secret.json
+
+# VM image path
+spoke_vm_image_dir: /var/lib/libvirt/images
+
+# Credential output paths
+spoke_auth_dir: "{{ ansible_user_dir }}/{{ spoke_cluster_name }}/auth"
+hub_auth_dir: "{{ ansible_user_dir }}/auth"

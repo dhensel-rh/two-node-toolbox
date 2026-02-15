@@ -1,0 +1,118 @@
+---
+# Create AgentServiceConfig with RHCOS ISO auto-extracted from release image
+
+- name: Get hub release image
+  shell: |
+    oc get clusterversion version -o jsonpath='{.status.desired.image}'
+  register: hub_release_image
+  changed_when: false
+
+- name: Get hub OCP version
+  shell: |
+    oc get clusterversion version -o jsonpath='{.status.desired.version}' \
+      | cut -d. -f1-2
+  register: hub_ocp_version
+  changed_when: false
+
+- name: Determine spoke release image
+  set_fact:
+    effective_release_image: >-
+      {{ hub_release_image.stdout if spoke_release_image == 'auto'
+         else spoke_release_image }}
+
+- name: Extract RHCOS ISO URL from release image
+  shell: |
+    # Get the machine-os-images reference from the release image
+    RHCOS_REF=$(oc adm release info "{{ effective_release_image }}" \
+      --registry-config="{{ pull_secret_path }}" \
+      --image-for=machine-os-images 2>/dev/null)
+    if [ -z "$RHCOS_REF" ]; then
+      echo "FAILED: Could not extract machine-os-images from release image"
+      exit 1
+    fi
+    # Extract the RHCOS ISO URL from the image labels/annotations
+    oc image info "$RHCOS_REF" --registry-config="{{ pull_secret_path }}" \
+      -o json 2>/dev/null \
+      | python3 -c "
+    import json, sys
+    data = json.load(sys.stdin)
+    labels = data.get('config', {}).get('config', {}).get('Labels', {})
+    stream = labels.get('coreos.stream', '')
+    version = labels.get('version', '')
+    if stream and version:
+        url = f'https://rhcos.mirror.openshift.com/art/storage/prod/streams/{stream}/builds/{version}/x86_64/rhcos-{version}-live-iso.x86_64.iso'
+        print(url)
+    else:
+        print('NEEDS_FALLBACK')
+    "
+  register: rhcos_iso_extraction
+  changed_when: false
+  failed_when: "'FAILED' in rhcos_iso_extraction.stdout"
+
+- name: Try fallback RHCOS ISO extraction via coreos print-stream-json
+  shell: |
+    rm -rf /tmp/oc-extract && mkdir -p /tmp/oc-extract
+    RHCOS_URL=$(oc adm release extract "{{ effective_release_image }}" \
+      --registry-config="{{ pull_secret_path }}" \
+      --command=openshift-install --to=/tmp/oc-extract 2>/dev/null && \
+      /tmp/oc-extract/openshift-install coreos print-stream-json 2>/dev/null \
+      | python3 -c "
+    import json, sys
+    data = json.load(sys.stdin)
+    iso = data['architectures']['x86_64']['artifacts']['metal']['formats']['iso']['disk']
+    print(iso['location'])
+    " 2>/dev/null) || true
+    rm -rf /tmp/oc-extract
+    if [ -n "$RHCOS_URL" ]; then
+      echo "$RHCOS_URL"
+    else
+      echo "FAILED"
+    fi
+  register: rhcos_iso_fallback
+  changed_when: false
+  when: "'NEEDS_FALLBACK' in rhcos_iso_extraction.stdout"
+
+- name: Set RHCOS ISO URL fact
+  set_fact:
+    rhcos_iso_url: >-
+      {{ rhcos_iso_fallback.stdout | default(rhcos_iso_extraction.stdout) | trim }}
+  failed_when: rhcos_iso_url == 'FAILED' or rhcos_iso_url == 'NEEDS_FALLBACK'
+
+- name: Display RHCOS ISO URL
+  debug:
+    msg: "RHCOS ISO URL: {{ rhcos_iso_url }}"
+
+- name: Get RHCOS version from ISO URL
+  set_fact:
+    rhcos_version: "{{ rhcos_iso_url | regex_search('rhcos-([\\d.]+-\\d+)-live', '\\1') | first }}"
+
+- name: Create AgentServiceConfig
+  template:
+    src: agentserviceconfig.yml.j2
+    dest: /tmp/agentserviceconfig.yml
+    mode: '0644'
+
+- name: Apply AgentServiceConfig
+  shell: |
+    oc apply -f /tmp/agentserviceconfig.yml
+  register: asc_result
+  changed_when: "'created' in asc_result.stdout"
+
+- name: Wait for assisted-service pod to be Running (2/2)
+  shell: |
+    oc get pods -n {{ assisted_service_namespace }} -l app=assisted-service \
+      --no-headers 2>/dev/null | grep -q '2/2.*Running'
+  register: assisted_pod
+  until: assisted_pod.rc == 0
+  retries: "{{ (assisted_service_timeout / 15) | int }}"
+  delay: 15
+
+- name: Display assisted-service pod status
+  shell: |
+    oc get pods -n {{ assisted_service_namespace }} -l app=assisted-service
+  register: pod_status
+  changed_when: false
+
+- name: Show assisted-service pod
+  debug:
+    msg: "{{ pod_status.stdout }}"

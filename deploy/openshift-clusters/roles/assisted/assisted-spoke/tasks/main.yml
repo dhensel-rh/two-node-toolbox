@@ -1,0 +1,30 @@
+---
+# Deploy spoke TNF cluster via assisted installer + BMH
+
+- block:
+    - name: Cleanup existing spoke resources
+      include_tasks: cleanup.yml
+      when: force_cleanup | bool
+
+    - name: Create dedicated libvirt network for spoke cluster
+      include_tasks: create-spoke-network.yml
+
+    - name: Create spoke VMs
+      include_tasks: create-spoke-vms.yml
+
+    - name: Verify sushy-tools is running
+      include_tasks: setup-ksushy.yml
+
+    - name: Create spoke cluster resources on hub
+      include_tasks: create-cluster-resources.yml
+
+    - name: Create BareMetalHost resources
+      include_tasks: create-bmh.yml
+
+    - name: Wait for spoke cluster installation to complete
+      include_tasks: wait-for-install.yml
+
+    - name: Retrieve spoke cluster credentials
+      include_tasks: retrieve-credentials.yml
+  environment:
+    KUBECONFIG: "{{ hub_kubeconfig }}"

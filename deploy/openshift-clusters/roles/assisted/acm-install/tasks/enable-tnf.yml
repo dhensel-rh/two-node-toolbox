@@ -1,0 +1,45 @@
+---
+# Enable TNF cluster support in assisted service
+# Requires both a ConfigMap AND an annotation on AgentServiceConfig
+
+- name: Create assisted-unsupported-config ConfigMap
+  shell: |
+    oc apply -f - <<'EOF'
+    apiVersion: v1
+    kind: ConfigMap
+    metadata:
+      name: assisted-unsupported-config
+      namespace: {{ assisted_service_namespace }}
+    data:
+      TNF_CLUSTERS_SUPPORT: "true"
+    EOF
+  register: cm_result
+  changed_when: "'created' in cm_result.stdout"
+
+- name: Annotate AgentServiceConfig to mount unsupported config
+  shell: |
+    oc annotate agentserviceconfig agent \
+      unsupported.agent-install.openshift.io/assisted-service-configmap=assisted-unsupported-config \
+      --overwrite
+  register: annotate_result
+  changed_when: "'annotated' in annotate_result.stdout"
+
+- name: Wait for assisted-service rollout after annotation
+  shell: |
+    oc rollout status deployment/assisted-service \
+      -n {{ assisted_service_namespace }} --timeout=120s
+  register: rollout_result
+  changed_when: false
+
+- name: Verify TNF support is enabled
+  shell: |
+    oc exec -n {{ assisted_service_namespace }} \
+      $(oc get pod -n {{ assisted_service_namespace }} -l app=assisted-service -o name | head -1) \
+      -c assisted-service -- env | grep -i TNF_CLUSTERS_SUPPORT
+  register: tnf_verify
+  changed_when: false
+  failed_when: "'TNF_CLUSTERS_SUPPORT=true' not in tnf_verify.stdout"
+
+- name: Display TNF support status
+  debug:
+    msg: "{{ tnf_verify.stdout | trim }}"

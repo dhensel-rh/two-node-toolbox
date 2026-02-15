@@ -13,8 +13,9 @@ Two-Node Toolbox (TNF) is a comprehensive deployment automation framework for Op
 # From the deploy/ directory:
 
 # Deploy AWS hypervisor and cluster in one command
-make deploy arbiter-ipi   # Deploy arbiter topology cluster 
+make deploy arbiter-ipi   # Deploy arbiter topology cluster
 make deploy fencing-ipi   # Deploy fencing topology cluster
+make deploy fencing-assisted   # Deploy hub + spoke TNF via assisted installer
 
 # Instance lifecycle management
 make create              # Create new EC2 instance
@@ -70,6 +71,15 @@ ansible-playbook kcli-install.yml -i inventory.ini -e "test_cluster_name=my-clus
 ansible-playbook kcli-install.yml -i inventory.ini -e "force_cleanup=true"
 ```
 
+#### Assisted Installer Method (Spoke TNF via ACM)
+```bash
+# Copy and customize the configuration template
+cp vars/assisted.yml.template vars/assisted.yml
+
+# Deploy hub + spoke TNF cluster via assisted installer
+make deploy fencing-assisted
+```
+
 ### Linting and Validation
 ```bash
 # Shell script linting (from repository root)
@@ -88,14 +98,17 @@ make shellcheck
    - Automatic inventory management for Ansible integration
 
 2. **OpenShift Cluster Deployment** (`deploy/openshift-clusters/`)
-   - Two deployment methods: dev-scripts (traditional) and kcli (modern)
+   - Three deployment methods: dev-scripts (traditional), kcli (modern), and assisted installer (spoke via ACM)
    - Ansible roles for complete cluster automation
    - Support for both arbiter and fencing topologies
+   - Assisted installer deploys spoke TNF clusters on an existing hub via ACM/MCE
    - Proxy configuration for external cluster access
 
 3. **Ansible Roles Architecture**:
    - `dev-scripts/install-dev`: Traditional deployment using openshift-metal3/dev-scripts
    - `kcli/kcli-install`: Modern deployment using kcli virtualization management
+   - `assisted/acm-install`: Install ACM/MCE + assisted service + enable TNF on hub
+   - `assisted/assisted-spoke`: Deploy spoke TNF cluster via assisted installer + BMH
    - `proxy-setup`: Squid proxy for cluster external access
    - `redfish`: Automated stonith configuration for fencing topology
    - `config`: SSH key and git configuration
@@ -119,8 +132,15 @@ make shellcheck
 - `roles/kcli/kcli-install/files/pull-secret.json`: OpenShift pull secret
 - SSH key automatically read from `~/.ssh/id_ed25519.pub` on ansible controller
 
+#### Assisted Installer Method
+- `vars/assisted.yml`: Variable override file (copy from `vars/assisted.yml.template`)
+- Hub cluster must be deployed first via dev-scripts (`make deploy fencing-ipi`)
+- Spoke credentials output to `~/<spoke_cluster_name>/auth/` on hypervisor
+- Hub proxy preserved as `hub-proxy.env`
+
 #### Generated Files
 - `proxy.env`: Generated proxy configuration (source this to access cluster)
+- `hub-proxy.env`: Hub proxy config (preserved when spoke proxy is configured)
 - `kubeconfig`: OpenShift cluster kubeconfig
 - `kubeadmin-password`: Default admin password
 
@@ -128,7 +148,7 @@ make shellcheck
 
 1. **Environment Setup**: Use `deploy/aws-hypervisor/` tools or bring your own RHEL 9 host
 2. **Configuration**: Edit inventory and config files based on chosen deployment method
-3. **Deployment**: Run appropriate Ansible playbook (setup.yml or kcli-install.yml)
+3. **Deployment**: Run appropriate Ansible playbook (setup.yml, kcli-install.yml, or assisted-install.yml)
 4. **Access**: Source `proxy.env` and use `oc` commands or WebUI through proxy
 5. **Cleanup**: Use cleanup make targets or Ansible playbooks
 
