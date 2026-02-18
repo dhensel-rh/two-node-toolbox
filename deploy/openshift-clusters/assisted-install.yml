@@ -13,6 +13,8 @@
   vars:
     topology: fencing
     interactive_mode: false
+    pull_secret_path: /opt/dev-scripts/pull_secret.json
+    hub_kubeconfig: "{{ ansible_user_dir }}/auth/kubeconfig"
 
   vars_files:
     - vars/assisted.yml
@@ -44,10 +46,6 @@
           The hub cluster must be deployed first.
       when: not hub_kubeconfig_check.stat.exists
 
-    - name: Set hub KUBECONFIG path
-      set_fact:
-        hub_kubeconfig: "{{ ansible_user_dir }}/auth/kubeconfig"
-
     - name: Preserve hub proxy.env as hub-proxy.env
       copy:
         src: "{{ playbook_dir }}/proxy.env"
@@ -55,6 +53,31 @@
         remote_src: no
         backup: no
       delegate_to: localhost
+
+    - name: Get hub release image
+      shell: |
+        oc get clusterversion version -o jsonpath='{.status.desired.image}'
+      register: hub_release_image_raw
+      changed_when: false
+      environment:
+        KUBECONFIG: "{{ hub_kubeconfig }}"
+
+    - name: Get hub OCP version
+      shell: |
+        oc get clusterversion version -o jsonpath='{.status.desired.version}' | cut -d. -f1-2
+      register: hub_ocp_version_raw
+      changed_when: false
+      environment:
+        KUBECONFIG: "{{ hub_kubeconfig }}"
+
+    - name: Set hub release facts
+      set_fact:
+        hub_release_image: "{{ hub_release_image_raw.stdout }}"
+        hub_ocp_version: "{{ hub_ocp_version_raw.stdout }}"
+        effective_release_image: >-
+          {{ hub_release_image_raw.stdout if spoke_release_image == 'auto'
+             else spoke_release_image }}
+        effective_ocp_version: "{{ hub_ocp_version_raw.stdout }}"
 
     - name: Display assisted installer configuration
       debug:

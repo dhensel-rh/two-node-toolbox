@@ -24,6 +24,13 @@
   changed_when: true
   failed_when: false
 
+- name: Remove spoke VM disk images
+  file:
+    path: "{{ spoke_vm_image_dir }}/{{ spoke_cluster_name }}-master-{{ item }}.qcow2"
+    state: absent
+  loop: "{{ range(spoke_ctlplanes) | list }}"
+  become: true
+
 - name: Remove spoke libvirt network
   shell: |
     sudo virsh net-destroy {{ spoke_network_name }} 2>/dev/null || true

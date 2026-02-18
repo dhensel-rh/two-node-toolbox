@@ -1,9 +1,6 @@
 ---
 # Default variables for acm-install role
 
-# Hub kubeconfig path (set by playbook pre_tasks, fallback to ansible_user_dir)
-hub_kubeconfig: "{{ ansible_user_dir }}/auth/kubeconfig"
-
 # Hub operator to install: "acm" or "mce"
 hub_operator: acm
 

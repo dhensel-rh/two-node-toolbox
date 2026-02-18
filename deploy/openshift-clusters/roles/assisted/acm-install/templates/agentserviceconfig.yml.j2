@@ -17,6 +17,6 @@ spec:
         storage: {{ assisted_images_size }}
   osImages:
   - cpuArchitecture: x86_64
-    openshiftVersion: "{{ hub_ocp_version.stdout }}"
+    openshiftVersion: "{{ hub_ocp_version }}"
     url: "{{ rhcos_iso_url }}"
     version: "{{ rhcos_version }}"

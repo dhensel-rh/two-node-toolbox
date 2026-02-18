@@ -18,6 +18,3 @@ operator_config:
 
 # The MCE namespace is always multicluster-engine regardless of hub_operator
 assisted_service_namespace: multicluster-engine
-
-# Pull secret location (dev-scripts standard path)
-pull_secret_path: /opt/dev-scripts/pull_secret.json

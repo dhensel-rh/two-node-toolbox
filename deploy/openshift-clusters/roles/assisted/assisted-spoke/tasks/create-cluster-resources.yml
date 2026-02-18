@@ -1,29 +1,15 @@
 ---
 # Create spoke cluster resources on hub: namespace, secrets, ClusterDeployment,
 # AgentClusterInstall, InfraEnv, ClusterImageSet
-
-- name: Get hub release image for spoke
-  shell: |
-    oc get clusterversion version -o jsonpath='{.status.desired.image}'
-  register: hub_release_image
-  changed_when: false
-
-- name: Get hub OCP version
-  shell: |
-    oc get clusterversion version -o jsonpath='{.status.desired.version}' | cut -d. -f1-2
-  register: hub_ocp_version
-  changed_when: false
-
-- name: Set effective spoke release image
-  set_fact:
-    effective_release_image: >-
-      {{ hub_release_image.stdout if spoke_release_image == 'auto'
-         else spoke_release_image }}
-    effective_ocp_version: "{{ hub_ocp_version.stdout }}"
+# hub_release_image, hub_ocp_version, effective_release_image, effective_ocp_version
+# are set by playbook pre_tasks
 
 - name: Get SSH public key
   shell: |
-    cat ~/.ssh/id_rsa.pub
+    for key in ~/.ssh/id_ed25519.pub ~/.ssh/id_rsa.pub ~/.ssh/id_ecdsa.pub; do
+      [ -f "$key" ] && cat "$key" && exit 0
+    done
+    echo "ERROR: No SSH public key found" >&2 && exit 1
   register: ssh_pub_key
   changed_when: false
 

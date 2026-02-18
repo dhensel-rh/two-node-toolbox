@@ -1,9 +1,6 @@
 ---
 # Default variables for assisted-spoke role
 
-# Hub kubeconfig path (set by playbook pre_tasks, fallback to ansible_user_dir)
-hub_kubeconfig: "{{ ansible_user_dir }}/auth/kubeconfig"
-
 # Spoke cluster identity
 spoke_cluster_name: spoke-tnf
 spoke_base_domain: example.com

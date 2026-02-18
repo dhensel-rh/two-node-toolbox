@@ -1,24 +1,6 @@
 ---
 # Create AgentServiceConfig with RHCOS ISO auto-extracted from release image
-
-- name: Get hub release image
-  shell: |
-    oc get clusterversion version -o jsonpath='{.status.desired.image}'
-  register: hub_release_image
-  changed_when: false
-
-- name: Get hub OCP version
-  shell: |
-    oc get clusterversion version -o jsonpath='{.status.desired.version}' \
-      | cut -d. -f1-2
-  register: hub_ocp_version
-  changed_when: false
-
-- name: Determine spoke release image
-  set_fact:
-    effective_release_image: >-
-      {{ hub_release_image.stdout if spoke_release_image == 'auto'
-         else spoke_release_image }}
+# hub_release_image, hub_ocp_version, effective_release_image are set by playbook pre_tasks
 
 - name: Extract RHCOS ISO URL from release image
   shell: |
@@ -47,7 +29,9 @@
     "
   register: rhcos_iso_extraction
   changed_when: false
-  failed_when: "'FAILED' in rhcos_iso_extraction.stdout"
+  failed_when: >-
+    rhcos_iso_extraction.rc != 0 or
+    'FAILED' in rhcos_iso_extraction.stdout
 
 - name: Try fallback RHCOS ISO extraction via coreos print-stream-json
   shell: |
@@ -75,8 +59,11 @@
 - name: Set RHCOS ISO URL fact
   set_fact:
     rhcos_iso_url: >-
-      {{ rhcos_iso_fallback.stdout | default(rhcos_iso_extraction.stdout) | trim }}
-  failed_when: rhcos_iso_url == 'FAILED' or rhcos_iso_url == 'NEEDS_FALLBACK'
+      {{ (rhcos_iso_fallback.stdout | default(rhcos_iso_extraction.stdout)) | trim }}
+  failed_when: >-
+    rhcos_iso_url == 'FAILED' or
+    rhcos_iso_url == 'NEEDS_FALLBACK' or
+    rhcos_iso_url == ''
 
 - name: Display RHCOS ISO URL
   debug:

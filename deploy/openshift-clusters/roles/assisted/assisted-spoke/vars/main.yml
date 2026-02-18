@@ -10,12 +10,8 @@ spoke_network_prefix: "{{ spoke_network_cidr | ansible.utils.ipaddr('prefix') }}
 # Libvirt network name (derived from spoke cluster name)
 spoke_network_name: "{{ spoke_cluster_name }}"
 
-# Pull secret location (dev-scripts standard path)
-pull_secret_path: /opt/dev-scripts/pull_secret.json
-
 # VM image path
 spoke_vm_image_dir: /var/lib/libvirt/images
 
 # Credential output paths
 spoke_auth_dir: "{{ ansible_user_dir }}/{{ spoke_cluster_name }}/auth"
-hub_auth_dir: "{{ ansible_user_dir }}/auth"
