@@ -19,10 +19,13 @@
         {"op":"remove","path":"/spec/provisioningDHCPRange"},
         {"op":"remove","path":"/spec/provisioningNetworkCIDR"},
         {"op":"remove","path":"/spec/provisioningInterface"}
-      ]' 2>&1 || echo "Some provisioning fields may not exist, continuing"
+      ]' 2>&1
   register: remove_result
   changed_when: "'patched' in remove_result.stdout"
-  failed_when: false
+  failed_when: >-
+    remove_result.rc != 0 and
+    'does not exist' not in remove_result.stderr and
+    'does not exist' not in remove_result.stdout
 
 - name: Wait for metal3 pod to stabilize after provisioning change
   shell: |

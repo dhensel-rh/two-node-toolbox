@@ -6,14 +6,14 @@
     oc delete namespace {{ spoke_cluster_name }} --ignore-not-found --timeout=120s
   register: ns_delete
   changed_when: "'deleted' in ns_delete.stdout"
-  failed_when: false
+  ignore_errors: true
 
 - name: Delete ClusterImageSet
   shell: |
     OCP_VER=$(oc get clusterversion version -o jsonpath='{.status.desired.version}' | cut -d. -f1-2)
     oc delete clusterimageset "${OCP_VER}.0" --ignore-not-found
   changed_when: false
-  failed_when: false
+  ignore_errors: true
 
 - name: Destroy spoke VMs
   shell: |
@@ -22,7 +22,7 @@
       sudo virsh undefine {{ spoke_cluster_name }}-master-${i} --remove-all-storage 2>/dev/null || true
     done
   changed_when: true
-  failed_when: false
+  ignore_errors: true
 
 - name: Remove spoke VM disk images
   file:
@@ -36,7 +36,7 @@
     sudo virsh net-destroy {{ spoke_network_name }} 2>/dev/null || true
     sudo virsh net-undefine {{ spoke_network_name }} 2>/dev/null || true
   changed_when: true
-  failed_when: false
+  ignore_errors: true
 
 - name: Remove spoke credential directory
   file:

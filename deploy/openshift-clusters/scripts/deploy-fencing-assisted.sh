@@ -35,6 +35,12 @@ echo "Deploying spoke TNF cluster via assisted installer..."
 
 cd "${DEPLOY_DIR}/openshift-clusters"
 
+# Parse spoke_cluster_name from vars/assisted.yml
+SPOKE_CLUSTER_NAME=$(grep '^spoke_cluster_name:' vars/assisted.yml | awk '{print $2}' | tr -d '"' | tr -d "'")
+if [[ -z "${SPOKE_CLUSTER_NAME}" ]]; then
+    SPOKE_CLUSTER_NAME="spoke-tnf"
+fi
+
 if ansible-playbook assisted-install.yml -i inventory.ini; then
     echo ""
     echo "OpenShift spoke TNF cluster deployment via assisted installer completed successfully!"
@@ -42,7 +48,7 @@ if ansible-playbook assisted-install.yml -i inventory.ini; then
     echo "Next steps:"
     echo "1. Access spoke cluster:"
     echo "   source ${DEPLOY_DIR}/openshift-clusters/proxy.env"
-    echo "   KUBECONFIG=~/spoke-tnf/auth/kubeconfig oc get nodes"
+    echo "   KUBECONFIG=~/${SPOKE_CLUSTER_NAME}/auth/kubeconfig oc get nodes"
     echo "2. Access hub cluster:"
     echo "   source ${DEPLOY_DIR}/openshift-clusters/hub-proxy.env"
     echo "   KUBECONFIG=~/auth/kubeconfig oc get nodes"

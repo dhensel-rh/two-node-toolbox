@@ -1,13 +1,39 @@
 ---
 # Monitor BMH provisioning, agent registration, and installation progress
 
-- name: Wait for agents to register
-  shell: |
-    oc get agents -n {{ spoke_cluster_name }} --no-headers 2>/dev/null | wc -l
-  register: agent_count
-  until: agent_count.stdout | int >= spoke_ctlplanes
-  retries: "{{ (spoke_agent_register_timeout / 30) | int }}"
-  delay: 30
+- block:
+    - name: Wait for agents to register
+      shell: |
+        oc get agents -n {{ spoke_cluster_name }} --no-headers 2>/dev/null | wc -l
+      register: agent_count
+      until: agent_count.stdout | int >= spoke_ctlplanes
+      retries: "{{ (spoke_agent_register_timeout / 30) | int }}"
+      delay: 30
+  rescue:
+    - name: Collect agent registration timeout diagnostics
+      shell: |
+        echo "=== Agents ({{ agent_count.stdout | default('0') }} / {{ spoke_ctlplanes }} registered) ==="
+        oc get agents -n {{ spoke_cluster_name }} 2>/dev/null || echo "No agents found"
+        echo ""
+        echo "=== BareMetalHosts ==="
+        oc get bmh -n {{ spoke_cluster_name }} 2>/dev/null
+        echo ""
+        echo "=== InfraEnv Status ==="
+        oc get infraenv -n {{ spoke_cluster_name }} -o yaml 2>/dev/null | grep -A 20 'status:'
+        echo ""
+        echo "=== Recent Events ==="
+        oc get events -n {{ spoke_cluster_name }} --sort-by='.lastTimestamp' 2>/dev/null | tail -20
+      register: agent_reg_diag
+      changed_when: false
+      failed_when: false
+
+    - name: Display agent registration timeout diagnostics
+      debug:
+        msg: "{{ agent_reg_diag.stdout }}"
+
+    - name: Fail after agent registration timeout
+      fail:
+        msg: "Expected {{ spoke_ctlplanes }} agents but only {{ agent_count.stdout | default('0') }} registered within timeout"
 
 - name: Display registered agents
   shell: |
@@ -19,68 +45,125 @@
   debug:
     msg: "{{ agents_info.stdout }}"
 
-- name: Wait for spoke cluster installation to complete
-  shell: |
-    ACI_STATE=$(oc get agentclusterinstall {{ spoke_cluster_name }} \
-      -n {{ spoke_cluster_name }} \
-      -o jsonpath='{.status.debugInfo.state}' 2>/dev/null)
-    echo "$ACI_STATE"
-    case "$ACI_STATE" in
-      adding-hosts|installed)
-        exit 0
-        ;;
-      error|failed)
-        echo "INSTALL FAILED"
-        oc get agentclusterinstall {{ spoke_cluster_name }} \
+- block:
+    - name: Wait for spoke cluster installation to complete
+      shell: |
+        ACI_STATE=$(oc get agentclusterinstall {{ spoke_cluster_name }} \
           -n {{ spoke_cluster_name }} \
-          -o jsonpath='{.status.conditions}' 2>/dev/null | python3 -m json.tool
-        exit 2
-        ;;
-      *)
-        exit 1
-        ;;
-    esac
-  register: install_state
-  until: install_state.rc == 0
-  retries: "{{ (spoke_install_timeout / 30) | int }}"
-  delay: 30
-  failed_when: install_state.rc == 2
+          -o jsonpath='{.status.debugInfo.state}' 2>/dev/null)
+        echo "$ACI_STATE"
+        case "$ACI_STATE" in
+          adding-hosts|installed)
+            exit 0
+            ;;
+          error|failed)
+            echo "INSTALL FAILED"
+            oc get agentclusterinstall {{ spoke_cluster_name }} \
+              -n {{ spoke_cluster_name }} \
+              -o jsonpath='{.status.conditions}' 2>/dev/null | python3 -m json.tool
+            exit 2
+            ;;
+          *)
+            exit 1
+            ;;
+        esac
+      register: install_state
+      until: install_state.rc == 0
+      retries: "{{ (spoke_install_timeout / 30) | int }}"
+      delay: 30
+      failed_when: install_state.rc == 2
+  rescue:
+    - name: Collect installation timeout diagnostics
+      shell: |
+        echo "=== AgentClusterInstall Status ==="
+        oc get agentclusterinstall {{ spoke_cluster_name }} -n {{ spoke_cluster_name }} \
+          -o yaml 2>/dev/null | grep -A 30 'status:'
+        echo ""
+        echo "=== Agents ==="
+        oc get agents -n {{ spoke_cluster_name }} 2>/dev/null
+        echo ""
+        echo "=== ClusterDeployment ==="
+        oc get clusterdeployment {{ spoke_cluster_name }} -n {{ spoke_cluster_name }} \
+          -o yaml 2>/dev/null | grep -A 20 'status:'
+        echo ""
+        echo "=== Recent Events ==="
+        oc get events -n {{ spoke_cluster_name }} --sort-by='.lastTimestamp' 2>/dev/null | tail -20
+      register: install_diag
+      changed_when: false
+      failed_when: false
+
+    - name: Display installation timeout diagnostics
+      debug:
+        msg: "{{ install_diag.stdout }}"
+
+    - name: Fail after installation timeout
+      fail:
+        msg: "Spoke cluster installation did not complete within timeout. Last state: {{ install_state.stdout_lines[0] | default('unknown') }}"
 
 - name: Display final installation state
   debug:
     msg: "Spoke cluster installation state: {{ install_state.stdout_lines[0] }}"
 
-- name: Wait for all agents to reach Done stage
-  shell: |
-    oc get agents -n {{ spoke_cluster_name }} -o json 2>/dev/null \
-      | python3 -c "
-    import json
-    import sys
+- block:
+    - name: Wait for all agents to reach Done stage
+      shell: |
+        oc get agents -n {{ spoke_cluster_name }} -o json 2>/dev/null \
+          | python3 -c "
+        import json
+        import sys
 
-    data = json.load(sys.stdin)
-    agents = data.get('items', [])
-    total = len(agents)
-    done = 0
-    stuck = []
-    for a in agents:
-        stage = a.get('status', {}).get('progress', {}).get('currentStage', 'unknown')
-        if stage == 'Done':
-            done += 1
-        else:
+        data = json.load(sys.stdin)
+        agents = data.get('items', [])
+        total = len(agents)
+        done = 0
+        stuck = []
+        for a in agents:
+            stage = a.get('status', {}).get('progress', {}).get('currentStage', 'unknown')
+            if stage == 'Done':
+                done += 1
+            else:
+                state = a.get('status', {}).get('debugInfo', {}).get('state', 'unknown')
+                hostname = a.get('spec', {}).get('hostname', 'unknown')
+                stuck.append(f'{hostname}: state={state}, stage={stage}')
+
+        print(f'Agents Done: {done} / {total}')
+        for s in stuck:
+            print(f'  {s}')
+        sys.exit(0 if done == total else 1)
+        "
+      register: agents_done
+      until: agents_done.rc == 0
+      retries: "{{ (spoke_install_timeout / 30) | int }}"
+      delay: 30
+      changed_when: false
+  rescue:
+    - name: Collect agent completion diagnostics
+      shell: |
+        echo "=== Agent Details ==="
+        oc get agents -n {{ spoke_cluster_name }} -o wide 2>/dev/null
+        echo ""
+        echo "=== Agent Progress ==="
+        oc get agents -n {{ spoke_cluster_name }} -o json 2>/dev/null \
+          | python3 -c "
+        import json, sys
+        data = json.load(sys.stdin)
+        for a in data.get('items', []):
+            name = a.get('spec', {}).get('hostname', 'unknown')
+            stage = a.get('status', {}).get('progress', {}).get('currentStage', 'unknown')
             state = a.get('status', {}).get('debugInfo', {}).get('state', 'unknown')
-            hostname = a.get('spec', {}).get('hostname', 'unknown')
-            stuck.append(f'{hostname}: state={state}, stage={stage}')
+            print(f'{name}: state={state}, stage={stage}')
+        " 2>/dev/null || echo "Failed to parse agent details"
+      register: agents_done_diag
+      changed_when: false
+      failed_when: false
 
-    print(f'Agents Done: {done} / {total}')
-    for s in stuck:
-        print(f'  {s}')
-    sys.exit(0 if done == total else 1)
-    "
-  register: agents_done
-  until: agents_done.rc == 0
-  retries: "{{ (spoke_install_timeout / 30) | int }}"
-  delay: 30
-  changed_when: false
+    - name: Display agent completion diagnostics
+      debug:
+        msg: "{{ agents_done_diag.stdout }}"
+
+    - name: Fail after agent completion timeout
+      fail:
+        msg: "Not all agents reached Done stage within timeout"
 
 - name: Display final agent status
   shell: |

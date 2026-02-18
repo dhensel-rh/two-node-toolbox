@@ -15,6 +15,9 @@
     interactive_mode: false
     pull_secret_path: /opt/dev-scripts/pull_secret.json
     hub_kubeconfig: "{{ ansible_user_dir }}/auth/kubeconfig"
+    method: assisted
+    cluster_state_dir: "../aws-hypervisor/instance-data"
+    cluster_state_filename: "cluster-vm-state.json"
 
   vars_files:
     - vars/assisted.yml
@@ -94,6 +97,16 @@
             Storage method: {{ assisted_storage_method }}
             Force cleanup: {{ force_cleanup }}
 
+    - name: Update cluster state to deploying
+      include_role:
+        name: common
+        tasks_from: cluster-state
+      vars:
+        cluster_state_phase: 'deploying'
+        default_playbook_name: 'assisted-install.yml'
+        num_masters: "{{ spoke_ctlplanes }}"
+        num_workers: 0
+
   roles:
     - role: assisted/acm-install
     - role: assisted/assisted-spoke
@@ -112,6 +125,16 @@
         tasks_from: update-cluster-inventory
       vars:
         test_cluster_name: "{{ spoke_cluster_name }}"
+
+    - name: Update cluster state to deployed
+      include_role:
+        name: common
+        tasks_from: cluster-state
+      vars:
+        cluster_state_phase: 'deployed'
+        default_playbook_name: 'assisted-install.yml'
+        num_masters: "{{ spoke_ctlplanes }}"
+        num_workers: 0
 
     - name: Display deployment summary
       debug:

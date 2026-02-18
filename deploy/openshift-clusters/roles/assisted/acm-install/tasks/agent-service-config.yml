@@ -85,14 +85,37 @@
   register: asc_result
   changed_when: "'created' in asc_result.stdout"
 
-- name: Wait for assisted-service pod to be Running (2/2)
-  shell: |
-    oc get pods -n {{ assisted_service_namespace }} -l app=assisted-service \
-      --no-headers 2>/dev/null | grep -q '2/2.*Running'
-  register: assisted_pod
-  until: assisted_pod.rc == 0
-  retries: "{{ (assisted_service_timeout / 15) | int }}"
-  delay: 15
+- block:
+    - name: Wait for assisted-service pod to be Running (2/2)
+      shell: |
+        oc get pods -n {{ assisted_service_namespace }} -l app=assisted-service \
+          --no-headers 2>/dev/null | grep -q '2/2.*Running'
+      register: assisted_pod
+      until: assisted_pod.rc == 0
+      retries: "{{ (assisted_service_timeout / 15) | int }}"
+      delay: 15
+  rescue:
+    - name: Collect assisted-service timeout diagnostics
+      shell: |
+        echo "=== Assisted Service Pods ==="
+        oc get pods -n {{ assisted_service_namespace }} 2>/dev/null
+        echo ""
+        echo "=== Pod Details ==="
+        oc describe pods -n {{ assisted_service_namespace }} -l app=assisted-service 2>/dev/null | tail -40
+        echo ""
+        echo "=== Recent Events ==="
+        oc get events -n {{ assisted_service_namespace }} --sort-by='.lastTimestamp' 2>/dev/null | tail -20
+      register: assisted_diag
+      changed_when: false
+      failed_when: false
+
+    - name: Display assisted-service timeout diagnostics
+      debug:
+        msg: "{{ assisted_diag.stdout }}"
+
+    - name: Fail after assisted-service timeout
+      fail:
+        msg: "assisted-service pod did not reach Running (2/2) state within timeout"
 
 - name: Display assisted-service pod status
   shell: |

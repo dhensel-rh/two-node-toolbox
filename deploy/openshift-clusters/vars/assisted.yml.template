@@ -28,11 +28,17 @@ spoke_vm_disk_size: 120      # GB
 spoke_ctlplanes: 2           # Always 2 for TNF
 
 # Spoke network configuration
+# DHCP range is auto-computed as .50-.150 of the CIDR.
+# VIPs must be outside that range to avoid conflicts.
 spoke_network_cidr: "192.168.125.0/24"
 spoke_api_vip: "192.168.125.5"
 spoke_ingress_vip: "192.168.125.10"
 spoke_cluster_network_cidr: "10.132.0.0/14"
 spoke_service_network_cidr: "172.31.0.0/16"
+
+# Hub network CIDR (for cross-bridge nftables rules between hub and spoke)
+# Must match the hub cluster's libvirt network. Default matches dev-scripts.
+hub_network_cidr: "192.168.111.0/24"
 
 # BMC / sushy-tools (defaults match dev-scripts deployment)
 spoke_bmc_user: admin
