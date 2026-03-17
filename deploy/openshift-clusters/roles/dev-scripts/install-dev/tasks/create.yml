@@ -13,16 +13,6 @@
     chdir: "{{dev_scripts_path}}"
     target: "requirements"
 
-# Workaround: dev-scripts' 01_install_requirements.sh uses sed -i to downgrade
-# the ansible version in metal3-dev-env/lib/common.sh, leaving the file dirty.
-# When 'make all' re-runs sync_repo_and_patch, git rebase fails on the unstaged change.
-- name: Clean dirty metal3-dev-env tree after requirements install
-  ansible.builtin.command:
-    cmd: git checkout -- lib/common.sh
-    chdir: "/opt/dev-scripts/metal3-dev-env"
-  changed_when: true
-  ignore_errors: true
-
 - name: Allow qemu read access for agent install
   ansible.posix.acl:
     path: "{{ item }}"
