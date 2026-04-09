@@ -49,7 +49,6 @@
   shell: |
     oc debug node/{{ item }} -- chroot /host bash -c "
       mkdir -p {{ assisted_images_path }} {{ assisted_db_path }}
-      rm -rf {{ assisted_images_path }}/* {{ assisted_db_path }}/*
       chmod 777 {{ assisted_images_path }} {{ assisted_db_path }}
       chcon -Rt container_file_t {{ assisted_images_path }} {{ assisted_db_path }}
     "

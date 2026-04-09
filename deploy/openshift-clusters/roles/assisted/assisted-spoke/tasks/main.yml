@@ -2,6 +2,9 @@
 # Deploy spoke TNF cluster via assisted installer + BMH
 
 - block:
+    - name: Validate spoke input variables
+      include_tasks: validate.yml
+
     - name: Cleanup existing spoke resources
       include_tasks: cleanup.yml
       when: force_cleanup | bool
