@@ -34,6 +34,9 @@
           -o jsonpath='{.status.defaultChannel}'
       register: detected_channel
       changed_when: false
+      retries: 30
+      delay: 30
+      until: detected_channel.rc == 0 and detected_channel.stdout != ""
 
     - name: Set operator channel fact
       set_fact:

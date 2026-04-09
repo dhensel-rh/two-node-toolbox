@@ -12,6 +12,7 @@
       namespace: {{ assisted_service_namespace }}
     data:
       TNF_CLUSTERS_SUPPORT: "true"
+      OPENSHIFT_INSTALL_EXPERIMENTAL_DISABLE_IMAGE_POLICY: "true"
     EOF
   register: cm_result
   changed_when: "'created' in cm_result.stdout"

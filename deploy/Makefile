@@ -1,5 +1,5 @@
 # Valid cluster types for 'make deploy <cluster-type>'
-VALID_CLUSTER_TYPES := fencing-ipi fencing-agent arbiter-ipi arbiter-agent arbiter-kcli fencing-kcli
+VALID_CLUSTER_TYPES := fencing-ipi fencing-agent fencing-assisted arbiter-ipi arbiter-agent arbiter-kcli fencing-kcli
 
 # Handle 'make deploy <cluster-type>' pattern
 # When 'deploy' is first, validate any following arguments are valid cluster types
