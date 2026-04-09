@@ -21,21 +21,21 @@
 - name: Validate spoke_network_cidr is a valid CIDR
   assert:
     that:
-      - spoke_network_cidr | ansible.utils.ipaddr('network/prefix') | bool
+      - spoke_network_cidr | ansible.utils.ipaddr('network/prefix') != false
     fail_msg: >-
       spoke_network_cidr '{{ spoke_network_cidr }}' is not a valid CIDR notation.
 
 - name: Validate spoke_api_vip is within spoke_network_cidr
   assert:
     that:
-      - spoke_api_vip | ansible.utils.ipaddr(spoke_network_cidr) | bool
+      - spoke_api_vip | ansible.utils.ipaddr(spoke_network_cidr) != false
     fail_msg: >-
       spoke_api_vip '{{ spoke_api_vip }}' is not within spoke_network_cidr '{{ spoke_network_cidr }}'.
 
 - name: Validate spoke_ingress_vip is within spoke_network_cidr
   assert:
     that:
-      - spoke_ingress_vip | ansible.utils.ipaddr(spoke_network_cidr) | bool
+      - spoke_ingress_vip | ansible.utils.ipaddr(spoke_network_cidr) != false
     fail_msg: >-
       spoke_ingress_vip '{{ spoke_ingress_vip }}' is not within spoke_network_cidr '{{ spoke_network_cidr }}'.
 
