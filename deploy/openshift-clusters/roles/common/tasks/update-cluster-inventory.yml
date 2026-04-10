@@ -17,36 +17,8 @@
 - name: Process cluster VMs
   when: has_cluster_vms | bool
   block:
-    - name: Get VM IP addresses from neighbor table and DHCP leases
-      shell: |
-        # Get all MAC addresses for this VM
-        MACS=$(virsh -c qemu:///system domiflist "{{ item }}" | awk 'NR>2 && $5 != "" {print tolower($5)}')
-
-        # Try to find IPs in neighbor table first (works for both IPv4 and IPv6)
-        for MAC in $MACS; do
-          # Look in neighbor table for this MAC, prefer global scope IPv6, then any IP
-          # Filter out link-local (fe80::) and ULA (fd00::) for IPv6
-          IP=$(ip neigh show | grep -i "$MAC" | awk '{print $1}' | grep -v '^fe80:' | grep -v '^fd00:' | head -n1)
-
-          if [ -n "$IP" ]; then
-            echo "$IP"
-            exit 0
-          fi
-        done
-
-        # Fallback: try DHCP leases
-        INTERFACES=$(virsh -c qemu:///system domiflist "{{ item }}" | awk 'NR>2 && $3 != "" && $5 != "" {print $3, $5}')
-        while IFS= read -r line; do
-          NETWORK=$(echo "$line" | awk '{print $1}')
-          MAC=$(echo "$line" | awk '{print $2}')
-
-          IP=$(virsh -c qemu:///system net-dhcp-leases "$NETWORK" 2>/dev/null | grep -i "$MAC" | awk '{print $5}' | cut -d'/' -f1 | head -n1)
-
-          if [ -n "$IP" ]; then
-            echo "$IP"
-            exit 0
-          fi
-        done <<< "$INTERFACES"
+    - name: Get VM IP addresses from DHCP leases (hostname preferred)
+      script: resolve_vm_ip.sh {{ item | quote }}
       register: vm_ips
       loop: "{{ cluster_vms.stdout_lines }}"
       changed_when: false
@@ -58,7 +30,7 @@
           {% set entries = [] %}
           {% for result in vm_ips.results %}
           {%   set vm_name = result.item %}
-          {%   set ip = result.stdout | trim %}
+          {%   set ip = result.stdout | default('') | trim %}
           {%   if ip | length > 0 %}
           {%     set _ = entries.append({'name': vm_name, 'ip': ip}) %}
           {%   endif %}
@@ -126,12 +98,13 @@
       shell: |
         set -e
         VM_IP="{{ item.ip }}"
-
-        # ssh-keyscan can use bare IP for both IPv4 and IPv6
-        ssh-keyscan -H "$VM_IP" >> ~/.ssh/known_hosts 2>/dev/null || true
-
-        # SSH to bare IP (works for both IPv4 and IPv6)
-        ssh -o StrictHostKeyChecking=no -o ConnectTimeout=10 core@"$VM_IP" \
+        if echo "$VM_IP" | grep -q ':'; then
+          SSH_HOST="[${VM_IP}]"
+        else
+          SSH_HOST="$VM_IP"
+        fi
+        ssh-keyscan -H "$SSH_HOST" >> ~/.ssh/known_hosts 2>/dev/null || true
+        ssh -o StrictHostKeyChecking=no -o ConnectTimeout=15 "core@${SSH_HOST}" \
           "echo '{{ local_ssh_pubkey_content }}' >> ~/.ssh/authorized_keys && sort -u ~/.ssh/authorized_keys -o ~/.ssh/authorized_keys"
       register: ssh_key_propagation
       changed_when: false
