@@ -35,6 +35,10 @@ echo "Deploying spoke TNF cluster via assisted installer..."
 
 cd "${DEPLOY_DIR}/openshift-clusters"
 
+# Install required Ansible collections
+echo "Installing required Ansible collections..."
+ansible-galaxy collection install -r collections/requirements.yml --force-with-deps 2>/dev/null || true
+
 # Parse spoke_cluster_name from vars/assisted.yml
 SPOKE_CLUSTER_NAME=$(grep '^spoke_cluster_name:' vars/assisted.yml | awk '{print $2}' | tr -d '"' | tr -d "'")
 if [[ -z "${SPOKE_CLUSTER_NAME}" ]]; then
