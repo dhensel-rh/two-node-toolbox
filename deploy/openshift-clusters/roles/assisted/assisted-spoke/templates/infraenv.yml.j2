@@ -1,0 +1,15 @@
+apiVersion: agent-install.openshift.io/v1beta1
+kind: InfraEnv
+metadata:
+  name: {{ spoke_cluster_name }}
+  namespace: {{ spoke_cluster_name }}
+spec:
+  clusterRef:
+    name: {{ spoke_cluster_name }}
+    namespace: {{ spoke_cluster_name }}
+  sshAuthorizedKey: "{{ ssh_pub_key.stdout }}"
+  agentLabels:
+    cluster: tnf
+  cpuArchitecture: x86_64
+  pullSecretRef:
+    name: {{ spoke_cluster_name }}-pull-secret

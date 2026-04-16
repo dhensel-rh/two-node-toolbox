@@ -1,0 +1,25 @@
+---
+# Default variables for acm-install role
+
+# Hub operator to install: "acm" or "mce"
+hub_operator: acm
+
+# ACM/MCE channel: "auto" detects from packagemanifest
+acm_channel: "auto"
+mce_channel: "auto"
+
+# Storage method for assisted service: "hostpath"
+assisted_storage_method: "hostpath"
+
+# hostPath directories on hub nodes
+assisted_images_path: /var/lib/assisted-images
+assisted_db_path: /var/lib/assisted-db
+assisted_images_size: 50Gi
+assisted_db_size: 10Gi
+assisted_storage_class: assisted-service
+
+# Timeouts (seconds)
+acm_csv_timeout: 900
+multiclusterhub_timeout: 1800
+assisted_service_timeout: 600
+metal3_stabilize_timeout: 300

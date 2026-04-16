@@ -1,0 +1,36 @@
+---
+# Validate hub cluster is healthy before proceeding
+
+- name: Check hub cluster nodes are Ready
+  shell: |
+    oc get nodes --no-headers | awk '{print $2}' | sort -u
+  register: node_statuses
+  changed_when: false
+  failed_when: "'NotReady' in node_statuses.stdout"
+
+- name: Check hub cluster node count
+  shell: |
+    oc get nodes --no-headers | wc -l
+  register: node_count
+  changed_when: false
+  failed_when: node_count.stdout | int < 2
+
+- name: Check for degraded cluster operators
+  shell: |
+    oc get co -o json | python3 -c "
+    import json, sys
+    cos = json.load(sys.stdin)['items']
+    degraded = [c['metadata']['name'] for c in cos
+                if any(cond['type'] == 'Degraded' and cond['status'] == 'True'
+                       for cond in c['status']['conditions'])]
+    if degraded:
+        print('Degraded operators: ' + ', '.join(degraded))
+        sys.exit(1)
+    print('All cluster operators healthy')
+    "
+  register: co_check
+  changed_when: false
+
+- name: Display hub cluster status
+  debug:
+    msg: "Hub cluster healthy: {{ node_count.stdout | trim }} nodes Ready, {{ co_check.stdout | trim }}"

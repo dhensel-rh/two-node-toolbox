@@ -1,0 +1,49 @@
+---
+# Patch Provisioning CR to:
+# 1. Enable watchAllNamespaces (BMO processes BMHs in all namespaces)
+# 2. Disable provisioning network (spoke VMs not on provisioning network)
+# 3. Remove leftover provisioning fields that cause ironic to hang
+
+- name: Patch Provisioning CR - enable watchAllNamespaces and disable provisioning network
+  shell: |
+    oc patch provisioning provisioning-configuration --type=merge \
+      -p '{"spec":{"provisioningNetwork":"Disabled","watchAllNamespaces":true}}'
+  register: patch_result
+  changed_when: "'patched' in patch_result.stdout"
+
+- name: Remove leftover provisioning fields from Provisioning CR
+  shell: |
+    oc patch provisioning provisioning-configuration --type=json \
+      -p '[
+        {"op":"remove","path":"/spec/provisioningIP"},
+        {"op":"remove","path":"/spec/provisioningDHCPRange"},
+        {"op":"remove","path":"/spec/provisioningNetworkCIDR"},
+        {"op":"remove","path":"/spec/provisioningInterface"}
+      ]' 2>&1
+  register: remove_result
+  changed_when: "'patched' in remove_result.stdout"
+  failed_when: >-
+    remove_result.rc != 0 and
+    'does not exist' not in remove_result.stderr and
+    'does not exist' not in remove_result.stdout
+
+- name: Wait for metal3 pod to stabilize after provisioning change
+  shell: |
+    oc get pods -n openshift-machine-api \
+      -l baremetal.openshift.io/cluster-baremetal-operator=metal3-state \
+      --no-headers 2>/dev/null | grep -v Terminating | grep -q Running
+  register: metal3_pod
+  until: metal3_pod.rc == 0
+  retries: "{{ (metal3_stabilize_timeout / 15) | int }}"
+  delay: 15
+
+- name: Display metal3 pod status
+  shell: |
+    oc get pods -n openshift-machine-api \
+      -l baremetal.openshift.io/cluster-baremetal-operator=metal3-state
+  register: metal3_status
+  changed_when: false
+
+- name: Show metal3 pod
+  debug:
+    msg: "{{ metal3_status.stdout }}"

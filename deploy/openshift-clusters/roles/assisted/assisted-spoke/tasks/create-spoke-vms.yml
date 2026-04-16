@@ -1,0 +1,75 @@
+---
+# Create empty libvirt VMs for spoke cluster, capture UUID/MAC
+
+- name: Create spoke VM disks
+  shell: |
+    sudo qemu-img create -f qcow2 \
+      {{ spoke_vm_image_dir }}/{{ spoke_cluster_name }}-master-{{ item }}.qcow2 \
+      {{ spoke_vm_disk_size }}G
+  args:
+    creates: "{{ spoke_vm_image_dir }}/{{ spoke_cluster_name }}-master-{{ item }}.qcow2"
+  loop: "{{ range(spoke_ctlplanes) | list }}"
+
+- name: Check if spoke VMs already exist
+  shell: |
+    sudo virsh dominfo {{ spoke_cluster_name }}-master-{{ item }} 2>/dev/null && echo "EXISTS" || echo "NOT_FOUND"
+  loop: "{{ range(spoke_ctlplanes) | list }}"
+  register: vm_check
+  changed_when: false
+
+- name: Create spoke VMs (defined but not started)
+  shell: |
+    sudo virt-install \
+      --name {{ spoke_cluster_name }}-master-{{ item.item }} \
+      --ram {{ spoke_vm_memory }} \
+      --vcpus {{ spoke_vm_vcpus }} \
+      --disk {{ spoke_vm_image_dir }}/{{ spoke_cluster_name }}-master-{{ item.item }}.qcow2,bus=virtio \
+      --network network={{ spoke_network_name }},model=virtio \
+      --os-variant rhel9.0 \
+      --graphics none \
+      --noautoconsole \
+      --boot hd,network \
+      --noreboot \
+      --import
+  loop: "{{ vm_check.results }}"
+  when: "'NOT_FOUND' in item.stdout"
+
+- name: Ensure spoke VMs are shut off
+  shell: |
+    sudo virsh destroy {{ spoke_cluster_name }}-master-{{ item }} 2>/dev/null || true
+  loop: "{{ range(spoke_ctlplanes) | list }}"
+  changed_when: false
+  failed_when: false
+
+- name: Capture spoke VM UUIDs
+  shell: |
+    sudo virsh domuuid {{ spoke_cluster_name }}-master-{{ item }}
+  loop: "{{ range(spoke_ctlplanes) | list }}"
+  register: vm_uuids
+  changed_when: false
+
+- name: Capture spoke VM MAC addresses
+  shell: |
+    sudo virsh domiflist {{ spoke_cluster_name }}-master-{{ item }} \
+      | grep {{ spoke_network_name }} | awk '{print $5}'
+  loop: "{{ range(spoke_ctlplanes) | list }}"
+  register: vm_macs
+  changed_when: false
+
+- name: Build spoke VM info list
+  set_fact:
+    spoke_vms: >-
+      {{ spoke_vms | default([]) + [
+        {
+          'index': item.item,
+          'name': spoke_cluster_name ~ '-master-' ~ item.item,
+          'uuid': vm_uuids.results[item.item].stdout | trim,
+          'mac': vm_macs.results[item.item].stdout | trim
+        }
+      ] }}
+  loop: "{{ vm_uuids.results }}"
+
+- name: Display spoke VM info
+  debug:
+    msg: "VM {{ item.name }}: UUID={{ item.uuid }}, MAC={{ item.mac }}"
+  loop: "{{ spoke_vms }}"

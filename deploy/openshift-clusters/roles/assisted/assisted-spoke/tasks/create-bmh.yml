@@ -1,0 +1,63 @@
+---
+# Create BareMetalHost resources with BMC secrets and fencing credentials for each spoke node
+
+- name: Create BMH resources for each spoke node
+  shell: |
+    oc apply -f - <<'EOF'
+    ---
+    apiVersion: v1
+    data:
+      password: {{ spoke_bmc_password | b64encode }}
+      username: {{ spoke_bmc_user | b64encode }}
+    kind: Secret
+    metadata:
+      name: {{ item.name }}-bmc-secret
+      namespace: {{ spoke_cluster_name }}
+    type: Opaque
+    ---
+    apiVersion: metal3.io/v1alpha1
+    kind: BareMetalHost
+    metadata:
+      name: {{ item.name }}-bmh
+      namespace: {{ spoke_cluster_name }}
+      annotations:
+        bmac.agent-install.openshift.io/hostname: "{{ item.name }}"
+        bmac.agent-install.openshift.io/role: "master"
+        bmac.agent-install.openshift.io/fencing-credentials-secret-name: "{{ item.name }}-fencing-credentials"
+      labels:
+        infraenvs.agent-install.openshift.io: "{{ spoke_cluster_name }}"
+    spec:
+      architecture: x86_64
+      bmc:
+        address: redfish-virtualmedia+https://{{ spoke_ksushy_ip }}:{{ spoke_ksushy_port }}/redfish/v1/Systems/{{ item.uuid }}
+        credentialsName: {{ item.name }}-bmc-secret
+        disableCertificateVerification: true
+      bootMACAddress: {{ item.mac }}
+      automatedCleaningMode: disabled
+      online: true
+    ---
+    apiVersion: v1
+    stringData:
+      address: https://{{ spoke_ksushy_ip }}:{{ spoke_ksushy_port }}/redfish/v1/Systems/{{ item.uuid }}
+      certificateVerification: Disabled
+      username: {{ spoke_bmc_user }}
+      password: {{ spoke_bmc_password }}
+    kind: Secret
+    metadata:
+      name: {{ item.name }}-fencing-credentials
+      namespace: {{ spoke_cluster_name }}
+    type: Opaque
+    EOF
+  loop: "{{ spoke_vms }}"
+  register: bmh_result
+  changed_when: "'created' in bmh_result.stdout"
+
+- name: Display BMH status
+  shell: |
+    oc get bmh -n {{ spoke_cluster_name }}
+  register: bmh_status
+  changed_when: false
+
+- name: Show BMH resources
+  debug:
+    msg: "{{ bmh_status.stdout }}"

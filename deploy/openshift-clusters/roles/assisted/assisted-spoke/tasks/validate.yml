@@ -1,0 +1,65 @@
+---
+# Validate spoke cluster input variables before deployment
+
+- name: Validate spoke_cluster_name is non-empty and DNS-safe
+  assert:
+    that:
+      - spoke_cluster_name is defined
+      - spoke_cluster_name | length > 0
+      - spoke_cluster_name is match('^[a-z0-9]([a-z0-9-]*[a-z0-9])?$')
+    fail_msg: >-
+      spoke_cluster_name '{{ spoke_cluster_name | default("") }}' is invalid.
+      Must be non-empty, lowercase, start/end with alphanumeric, and contain only [a-z0-9-].
+
+- name: Validate spoke_ctlplanes is at least 2
+  assert:
+    that:
+      - spoke_ctlplanes | int >= 2
+    fail_msg: >-
+      spoke_ctlplanes must be at least 2 for TNF topology, got {{ spoke_ctlplanes }}.
+
+- name: Validate spoke_network_cidr is a valid CIDR
+  assert:
+    that:
+      - spoke_network_cidr | ansible.utils.ipaddr('network/prefix') != false
+    fail_msg: >-
+      spoke_network_cidr '{{ spoke_network_cidr }}' is not a valid CIDR notation.
+
+- name: Validate spoke_api_vip is within spoke_network_cidr
+  assert:
+    that:
+      - spoke_api_vip | ansible.utils.ipaddr(spoke_network_cidr) != false
+    fail_msg: >-
+      spoke_api_vip '{{ spoke_api_vip }}' is not within spoke_network_cidr '{{ spoke_network_cidr }}'.
+
+- name: Validate spoke_ingress_vip is within spoke_network_cidr
+  assert:
+    that:
+      - spoke_ingress_vip | ansible.utils.ipaddr(spoke_network_cidr) != false
+    fail_msg: >-
+      spoke_ingress_vip '{{ spoke_ingress_vip }}' is not within spoke_network_cidr '{{ spoke_network_cidr }}'.
+
+- name: Validate VIPs are not in DHCP range (.50-.150)
+  assert:
+    that:
+      - spoke_api_vip | ansible.utils.ipaddr('int') | int < spoke_dhcp_start | ansible.utils.ipaddr('int') | int or
+        spoke_api_vip | ansible.utils.ipaddr('int') | int > spoke_dhcp_end | ansible.utils.ipaddr('int') | int
+      - spoke_ingress_vip | ansible.utils.ipaddr('int') | int < spoke_dhcp_start | ansible.utils.ipaddr('int') | int or
+        spoke_ingress_vip | ansible.utils.ipaddr('int') | int > spoke_dhcp_end | ansible.utils.ipaddr('int') | int
+    fail_msg: >-
+      VIPs must be outside the DHCP range ({{ spoke_dhcp_start }} - {{ spoke_dhcp_end }}).
+      API VIP: {{ spoke_api_vip }}, Ingress VIP: {{ spoke_ingress_vip }}.
+
+- name: Validate API and Ingress VIPs are different
+  assert:
+    that:
+      - spoke_api_vip != spoke_ingress_vip
+    fail_msg: >-
+      spoke_api_vip and spoke_ingress_vip must be different, both are '{{ spoke_api_vip }}'.
+
+- name: Display spoke input validation result
+  debug:
+    msg: >-
+      Spoke inputs validated: cluster={{ spoke_cluster_name }}.{{ spoke_base_domain }},
+      nodes={{ spoke_ctlplanes }}, network={{ spoke_network_cidr }},
+      API VIP={{ spoke_api_vip }}, Ingress VIP={{ spoke_ingress_vip }}

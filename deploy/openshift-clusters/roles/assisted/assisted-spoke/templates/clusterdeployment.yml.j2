@@ -1,0 +1,20 @@
+apiVersion: hive.openshift.io/v1
+kind: ClusterDeployment
+metadata:
+  name: {{ spoke_cluster_name }}
+  namespace: {{ spoke_cluster_name }}
+spec:
+  baseDomain: {{ spoke_base_domain }}
+  clusterName: {{ spoke_cluster_name }}
+  clusterInstallRef:
+    group: extensions.hive.openshift.io
+    kind: AgentClusterInstall
+    name: {{ spoke_cluster_name }}
+    version: v1beta1
+  platform:
+    agentBareMetal:
+      agentSelector:
+        matchLabels:
+          cluster: tnf
+  pullSecretRef:
+    name: {{ spoke_cluster_name }}-pull-secret

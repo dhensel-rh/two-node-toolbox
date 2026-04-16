@@ -1,0 +1,34 @@
+---
+# Verify sushy-tools is running on the hypervisor (should already exist from dev-scripts)
+
+- name: Check if sushy-tools container is running
+  shell: |
+    sudo podman ps --format '{{ '{{' }}.Names{{ '}}' }}' | grep -q sushy-tools
+  register: sushy_check
+  changed_when: false
+  failed_when: false
+
+- name: Fail if sushy-tools is not running
+  fail:
+    msg: >-
+      sushy-tools container is not running. It should be started by dev-scripts.
+      Ensure the hub was deployed with 'make deploy fencing-ipi' before running
+      the assisted installer.
+  when: sushy_check.rc != 0
+
+- name: Verify spoke VMs are visible via sushy-tools
+  shell: |
+    curl -sk https://{{ spoke_ksushy_ip }}:{{ spoke_ksushy_port }}/redfish/v1/Systems/ \
+      -u {{ spoke_bmc_user }}:{{ spoke_bmc_password }} \
+      | python3 -c "import json,sys; d=json.load(sys.stdin); print(d['Members@odata.count'])"
+  register: sushy_systems
+  changed_when: false
+
+- name: Verify expected number of systems visible
+  assert:
+    that:
+      - sushy_systems.stdout | int >= (spoke_ctlplanes + 2)
+    fail_msg: >-
+      Expected at least {{ spoke_ctlplanes + 2 }} systems in sushy-tools
+      ({{ spoke_ctlplanes }} spoke + 2 hub), but found {{ sushy_systems.stdout }}.
+    success_msg: "sushy-tools has {{ sushy_systems.stdout }} systems visible ({{ spoke_ctlplanes }} spoke + 2 hub)"

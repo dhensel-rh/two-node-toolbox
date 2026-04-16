@@ -1,0 +1,20 @@
+---
+# Role-internal variables (not user-overridable)
+
+acm_namespace: open-cluster-management
+mce_namespace: multicluster-engine
+
+operator_config:
+  acm:
+    namespace: "{{ acm_namespace }}"
+    package_name: advanced-cluster-management
+    subscription_name: advanced-cluster-management
+    source: redhat-operators
+  mce:
+    namespace: "{{ mce_namespace }}"
+    package_name: multicluster-engine
+    subscription_name: multicluster-engine
+    source: redhat-operators
+
+# The MCE namespace is always multicluster-engine regardless of hub_operator
+assisted_service_namespace: multicluster-engine

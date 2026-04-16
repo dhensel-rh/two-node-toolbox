@@ -79,7 +79,7 @@ else
 fi
 
 ec2Type="VirtualMachine"
-if [[ "$EC2_INSTANCE_TYPE" =~ c[0-9]+[gn].metal ]]; then
+if [[ "$EC2_INSTANCE_TYPE" =~ c[0-9]+[a-z]*.metal ]]; then
   ec2Type="MetalMachine"
 fi
 
