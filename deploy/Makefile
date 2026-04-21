@@ -49,6 +49,9 @@ clean:
 full-clean:
 	@./openshift-clusters/scripts/full-clean.sh
 
+clean-spoke:
+	@./openshift-clusters/scripts/clean-spoke.sh
+
 ssh:
 	@./aws-hypervisor/scripts/ssh.sh
 
@@ -119,6 +122,7 @@ help:
 	@echo "  startup-cluster      - Start up OpenShift cluster VMs and proxy container"
 	@echo "  clean                - Clean OpenShift cluster using dev-scripts clean target"
 	@echo "  full-clean           - Fully clean instance cache and OpenShift cluster using dev-scripts realclean target"
+	@echo "  clean-spoke          - Clean spoke cluster resources (VMs, network, auth) from assisted installer"
 	@echo "  patch-nodes          - Build resource-agents RPM and patch cluster nodes (default version: 4.11)"
 	@echo ""
 	@echo "Cluster Utilities:"
