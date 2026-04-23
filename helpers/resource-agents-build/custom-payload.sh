@@ -14,6 +14,10 @@
 # Default pull auth: PULL_SECRET_PATH, or -a, else ~/.docker/config.json (macOS)
 # or ~/.config/containers/auth.json (Linux) as documented in --help.
 #
+# Quay label quay.expires-after defaults to 24h on both the RHCOS image (podman --label)
+# and the payload (extra layer after oc adm release new); override with QUAY_EXPIRES_AFTER
+# or --quay-expires-after, or use none to disable.
+#
 # Requires: curl; oc; podman; jq or python3 (for --auto-release). Use --print-only
 # to skip oc, --no-build to skip podman after writing Dockerfile.
 set -euo pipefail
@@ -40,6 +44,9 @@ SKIP_OC="0"
 SKIP_PODMAN_BUILD="0" # set 1 with --no-build
 BUILT_OCI_REF=""      # set after successful podman push: repo@sha256:... for oc adm
 RPM_FILENAME="resource-agents.rpm" # for Dockerfile example only
+# Quay garbage-collection hint (both OS layer and release payload). Set empty, none/off, or 0 to skip.
+EXPIRES_LABEL_VALUE=""
+QUAY_EXPIRES_AFTER_OVERRIDE="" # set with --quay-expires-after (bypasses env default for EXPIRES_LABEL_VALUE)
 
 usage() {
     cat <<EOF
@@ -81,6 +88,11 @@ Release source (one required):
   --rpm-filename NAME   Name used in the Dockerfile COPY / RUN example
                         (default: ${RPM_FILENAME})
 
+  --quay-expires-after DURATION|none
+                        Set Quay OCI label quay.expires-after on the built
+                        RHCOS image and on the custom payload image. Default: 24h
+                        (or env QUAY_EXPIRES_AFTER; use none/off to disable the label)
+
   --print-only          Do not run oc; only fetch release (with --auto-release)
                         and show placeholders for OS image and commands. Implies
                         no podman build (invalid RHCOS FROM in Dockerfile).
@@ -99,6 +111,11 @@ Default pull secret when -a is omitted:
   - Linux:           ~/.config/containers/auth.json, then ~/.docker/config.json
   - Set PULL_SECRET_PATH or use -a to point at a pull-secret file from
     cloud.openshift.com or your registry auth JSON.
+
+Quay label quay.expires-after (default 24h, override with --quay-expires-after
+or env QUAY_EXPIRES_AFTER, use none to disable) is applied to the custom
+RHCOS image (podman build --label) and to the payload after oc adm release new
+(via a thin follow-up image build).
 
 By default this script runs podman build against the generated Dockerfile and
 pushes the image to --to-os-image (DEFAULT_TO_IMAGE) tagged as
@@ -126,6 +143,60 @@ EOF
 }
 
 err() { echo "Error: $*" >&2; exit 1; }
+
+# Resolve quay.expires-after value: default 24h, env QUAY_EXPIRES_AFTER, --quay-expires-after wins;
+# none|off|false|0 disables (empty means no --label / no relayer).
+resolve_quay_expires_label() {
+    local v raw
+    raw="${QUAY_EXPIRES_AFTER_OVERRIDE:-}"
+    if [[ -n "$raw" ]]; then
+        v="$raw"
+    else
+        v="${QUAY_EXPIRES_AFTER:-24h}"
+    fi
+    case "${v,,}" in
+        "" | none | off | "false" | 0) echo "" ;;
+        *) echo "$v" ;;
+    esac
+}
+
+# After oc adm release new, add Quay's garbage-collection label to the payload image.
+relabel_pushed_payload_with_quay_expires() {
+    local image_ref=$1
+    local authfile=$2
+    local expires_val=$3
+    local tmpdir df
+
+    [[ -n "$expires_val" ]] || return 0
+    if ! command -v podman >/dev/null 2>&1; then
+        err "podman not in PATH; cannot add label to payload image"
+    fi
+
+    tmpdir=$(mktemp -d) || err "mktemp -d failed"
+    df="${tmpdir}/Containerfile"
+    {
+        printf 'FROM %s\n' "$image_ref"
+        printf 'LABEL quay.expires-after=%s\n' "$expires_val"
+    } > "$df"
+
+    echo "Layering quay.expires-after=${expires_val} onto payload image: ${image_ref}"
+    echo "  podman pull --authfile ${authfile} ${image_ref}"
+    podman pull --authfile "$authfile" "$image_ref" || {
+        rm -rf "$tmpdir"
+        err "podman pull failed for ${image_ref}"
+    }
+    echo "  podman build --authfile ${authfile} -f ${df} -t ${image_ref} ${tmpdir}"
+    podman build --authfile "$authfile" -f "$df" -t "$image_ref" "$tmpdir" || {
+        rm -rf "$tmpdir"
+        err "podman build (payload relabel) failed"
+    }
+    echo "  podman push --authfile ${authfile} ${image_ref}"
+    podman push --authfile "$authfile" "$image_ref" || {
+        rm -rf "$tmpdir"
+        err "podman push (payload relabel) failed"
+    }
+    rm -rf "$tmpdir"
+}
 
 # macOS: Docker Desktop often uses ~/.docker/config.json; Linux: podman in ~/.config/containers
 default_authfile() {
@@ -286,9 +357,17 @@ run_custom_os_build_and_push() {
     oci_tag="$(oci_tag_nightly_custom "${release_ref}")"
     full_name="${repo_base}:${oci_tag}"
 
+    local label_args=()
+    if [[ -n "${EXPIRES_LABEL_VALUE:-}" ]]; then
+        label_args+=(--label "quay.expires-after=${EXPIRES_LABEL_VALUE}")
+    fi
     echo "Running podman build (context: ${build_ctx}):"
-    echo "  podman build --authfile ${authfile} -f ${dockerfile_path} -t ${full_name} ${build_ctx}"
-    podman build --authfile "$authfile" -f "$dockerfile_path" -t "$full_name" "$build_ctx"
+    if ((${#label_args[@]})); then
+        echo "  podman build ... --label quay.expires-after=${EXPIRES_LABEL_VALUE} -f ${dockerfile_path} -t ${full_name} ${build_ctx}"
+    else
+        echo "  podman build --authfile ${authfile} -f ${dockerfile_path} -t ${full_name} ${build_ctx}"
+    fi
+    podman build --authfile "$authfile" "${label_args[@]}" -f "$dockerfile_path" -t "$full_name" "$build_ctx"
 
     digestfile="$(mktemp "${TMPDIR:-/tmp}/tnf-custom-os-digest.XXXXXX")"
     echo "Pushing: ${full_name}"
@@ -416,6 +495,7 @@ print_release_new_cmd() {
         --from-release "$from_release" \
         --to-image "$to_payload_image" \
         "${mapping}"
+    relabel_pushed_payload_with_quay_expires "$to_payload_image" "$auth" "$EXPIRES_LABEL_VALUE"
 }
 
 while [[ $# -gt 0 ]]; do
@@ -461,6 +541,11 @@ while [[ $# -gt 0 ]]; do
             RPM_FILENAME="$2"
             shift 2
             ;;
+        --quay-expires-after)
+            [[ $# -ge 2 ]] || err "--quay-expires-after requires a value (e.g. 24h, 7d, none)"
+            QUAY_EXPIRES_AFTER_OVERRIDE="$2"
+            shift 2
+            ;;
         --print-only) SKIP_OC=1; SKIP_PODMAN_BUILD=1; shift ;;
         --skip-oc) SKIP_OC=1; shift ;;
         --no-build) SKIP_PODMAN_BUILD=1; shift ;;
@@ -485,6 +570,8 @@ if [[ -n "$RELEASE_REF" && "$USE_AUTO_RELEASE" -eq 1 ]]; then
     err "Use only one of --release or --auto-release"
 fi
 
+EXPIRES_LABEL_VALUE="$(resolve_quay_expires_label)"
+
 if [[ "$USE_AUTO_RELEASE" -eq 1 ]]; then
     RELEASE_REF="$(fetch_auto_release_pullspec)"
     echo "Using newest Ready 5.0.0-0.nightly payload:"
@@ -501,6 +588,11 @@ PAYLOAD_TO_IMAGE="$(payload_to_image_nightly_whoami "${PAYLOAD_TO_IMAGE}" "${REL
 AUTHFILE_RESOLVED="$(resolve_default_authfile)"
 echo "Pull secret (oc -a / podman --authfile):"
 echo "  ${AUTHFILE_RESOLVED}"
+if [[ -n "$EXPIRES_LABEL_VALUE" ]]; then
+    echo "Quay label quay.expires-after: ${EXPIRES_LABEL_VALUE}"
+else
+    echo "Quay label quay.expires-after: (disabled)"
+fi
 echo ""
 
 OS_REF=""
