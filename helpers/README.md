@@ -337,6 +337,25 @@ Run `./custom-payload.sh --help` for flags such as `--base-os` (`rhel-coreos` vs
 
 **Pull secret and the same registry twice:** if you use different tokens on the same registry host—for example one credential for the general `quay.io` pull path and another for a specific org such as `quay.io/rh-edge-enablement`—put them in **separate** `auths` entries, for example one key `quay.io` and another `quay.io/rh-edge-enablement`. A single `quay.io` entry may not match both paths reliably; splitting them keeps pulls and pushes unambiguous for `oc` and `podman`.
 
+ex:
+```json
+{
+        "auths": {
+           ....
+                "quay.io": {
+                        "auth": "<secret>"
+                },
+                "quay.io/eggfoobar": {
+                        "auth": "<secret_same>"
+                },
+                "quay.io/rh-edge-enablement": {
+                        "auth": "<secret_same>"
+                },
+           ....
+        }
+}
+```
+
 ## Notes
 
 - Both tools use `rpm-ostree override replace` which is appropriate for updating existing packages
