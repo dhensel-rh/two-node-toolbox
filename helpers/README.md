@@ -308,11 +308,11 @@ This is useful when you want to validate the RPM locally before patching.
 
 ### custom-payload.sh
 
-`custom-payload.sh` ties the containerized build to an OpenShift 5.x release: it resolves a nightly payload, prints the base `rhel-coreos` / `rhel-coreos-10` image from `oc adm release info`, appends the RPM-ostree override layer to `Dockerfile.stream9` or `Dockerfile.stream10`, and writes `Dockerfile.custompayload`. It then (unless you use dry-run style flags) runs `podman` to build and push the custom OS image and runs `oc adm release new` to publish a custom **release payload** image that points that OS layer at the correct component name (for example `rhel-coreos-10=...`).
+`custom-payload.sh` ties the containerized build to an OpenShift 5.x release: it resolves a nightly payload, prints the base `rhel-coreos` / `rhel-coreos-10` image from `oc adm release info`, and generates `Dockerfile.custompayload` by combining the **contents** of `Dockerfile.stream9` or `Dockerfile.stream10` (depending on `--base-os`) with an RPM-ostree override snippet—the script does **not** change `Dockerfile.stream9` or `Dockerfile.stream10` on disk. Then, unless you use **dry-run-style** flags, it runs `podman` to build and push the custom OS image and runs `oc adm release new` to publish a custom **release payload** image that points that OS layer at the correct component name (for example `rhel-coreos-10=...`).
 
 **When to use it:** after you are happy with a resource-agents RPM from `local-build-test.sh` (or an equivalent build), and you want a full custom payload image to install or test on a 5.0 line cluster—without going through the hypervisor-based `build-and-patch-resource-agents.yml` path for node RPM overrides alone.
 
-**Requirements:** `curl`, `oc`, `podman`, and `jq` or `python3` (for `--auto-release`). A pull secret the same way as other `oc` / `podman` registry operations (`-a` / `PULL_SECRET_PATH`, or the default `~/.docker/config.json` / `~/.config/containers/auth.json` as documented in the script’s `--help`).
+**Requirements:** `curl`, `oc`, `podman`, and `jq` or `python3` (for `--auto-release`). Pull secret handling works the same way as other `oc` / `podman` registry operations (`-a` / `PULL_SECRET_PATH`, or the default `~/.docker/config.json` / `~/.config/containers/auth.json` as documented in the script's `--help`).
 
 **Usage (from `helpers/resource-agents-build/`):**
 

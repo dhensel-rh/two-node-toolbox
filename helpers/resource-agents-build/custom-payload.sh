@@ -9,7 +9,7 @@
 # DEFAULT_TO_PAYLOAD_IMAGE (base repo; tag = nightly-whoami), mapping BASE_OS= to the pushed OS image @digest.
 #
 # Either pass --release PULLSPEC, or --auto-release to use the first tag in the
-# 5.0.0-0.nightly stream with phase Ready (newest-first order from the API).
+# 5.0.0-0.nightly stream with phase Accepted (newest-first order from the API).
 #
 # Default pull auth: PULL_SECRET_PATH, or -a, else ~/.docker/config.json (macOS)
 # or ~/.config/containers/auth.json (Linux) as documented in --help.
@@ -36,7 +36,7 @@ RELEASE_REF=""
 PULL_SECRET_PATH="${PULL_SECRET_PATH:-}"
 AUTHFILE="${PULL_SECRET_PATH:-}"
 USE_AUTO_RELEASE="0"
-BASE_OS="rhel-coreos"
+BASE_OS="rhel-coreos-10"
 CUSTOM_OS_TO_IMAGE="${CUSTOM_OS_TO_IMAGE:-${DEFAULT_TO_IMAGE}}"
 PAYLOAD_TO_IMAGE="${PAYLOAD_TO_IMAGE:-${DEFAULT_TO_PAYLOAD_IMAGE}}"
 CUSTOM_OS_IMAGE_REF="" # full ref for ${BASE_OS}= in oc command; if empty, filled from podman push digest when we build
@@ -255,7 +255,7 @@ for t in data.get("tags") or []:
     else
         err "Need jq or python3 to parse the release API JSON"
     fi
-    [[ -n "${pullspec}" ]] || err "No tag with phase Ready in 5.0.0-0.nightly (see ${API_5_NIGHTLY_URL})"
+    [[ -n "${pullspec}" ]] || err "No tag with phase Accepted in 5.0.0-0.nightly (see ${API_5_NIGHTLY_URL})"
     echo "${pullspec}"
 }
 
@@ -377,7 +377,15 @@ run_custom_os_build_and_push() {
     BUILT_OCI_REF="$(resolve_pushed_oci_ref "$full_name" "$digestfile")" || BUILT_OCI_REF=""
     rm -f "$digestfile"
     if [[ -z "$BUILT_OCI_REF" ]]; then
-        echo "Warning: could not determine digest ref; set --custom-os to your image@sha256 after push." >&2
+        echo "" >&2
+        echo "========================================================" >&2
+        echo "WARNING: Push succeeded but digest could not be resolved." >&2
+        echo "The 'oc adm release new' command below was NOT executed." >&2
+        echo "Find your digest with:" >&2
+        echo "  podman image inspect ${full_name} --format '{{index .RepoDigests 0}}'" >&2
+        echo "Then run the printed command manually with your digest." >&2
+        echo "========================================================" >&2
+        echo "" >&2
     else
         echo "Pushed image ref: ${BUILT_OCI_REF}"
     fi
@@ -417,7 +425,7 @@ write_dockerfile_custompayload() {
         add_stream_build_stage_name < "$base_docker"
         printf '\n# --- RHCOS custom payload layer (appended by %s, BASE_OS=%s) ---\n' "$SCRIPT_NAME" "$BASE_OS"
         if [[ "$SKIP_OC" -eq 1 ]]; then
-            print_dockerfile_placeholder "$AUTHFILE_RESOLVED" "$RELEASE_REF" "$BASE_OS"
+            print_dockerfile_placeholder "$AUTHFILE_REF" "$RELEASE_REF" "$BASE_OS"
         else
             print_dockerfile_snippet "${OS_REF}"
         fi
@@ -434,6 +442,8 @@ FROM ${os_ref}
 
 COPY --from=${STREAM_BUILD_STAGE} /tmp/${RPM_FILENAME} /${RPM_FILENAME}
 
+RUN test -s /${RPM_FILENAME} || \
+    (echo 'ERROR: ${RPM_FILENAME} is empty (Stream 10 cannot build RPMs until libqb-devel is in EPEL 10). Use --base-os rhel-coreos for Stream 9.' && exit 1)
 RUN rpm-ostree -C override replace /${RPM_FILENAME} && rm -f /${RPM_FILENAME}
 EOF
 }
@@ -449,7 +459,8 @@ print_dockerfile_placeholder() {
 FROM localhost/REPLACE-WITH-OUTPUT-OF-OC-ADM-RELEASE-INFO-ABOVE
 
 COPY --from=${STREAM_BUILD_STAGE} /tmp/${RPM_FILENAME} /${RPM_FILENAME}
-
+RUN test -s /${RPM_FILENAME} || \
+    (echo 'ERROR: ${RPM_FILENAME} is empty (Stream 10 cannot build RPMs until libqb-devel is in EPEL 10). Use --base-os rhel-coreos for Stream 9.' && exit 1)
 RUN rpm-ostree -C override replace /${RPM_FILENAME} && rm -f /${RPM_FILENAME}
 EOF
 }
@@ -542,7 +553,7 @@ while [[ $# -gt 0 ]]; do
             shift 2
             ;;
         --quay-expires-after)
-            [[ $# -ge 2 ]] || err "--quay-expires-after requires a value (e.g. 24h, 7d, none)"
+            [[ -n "${2:-}" && "$2" != -* ]] || err "--quay-expires-after requires a value (e.g. 24h, 7d, none)"
             QUAY_EXPIRES_AFTER_OVERRIDE="$2"
             shift 2
             ;;
@@ -574,7 +585,7 @@ EXPIRES_LABEL_VALUE="$(resolve_quay_expires_label)"
 
 if [[ "$USE_AUTO_RELEASE" -eq 1 ]]; then
     RELEASE_REF="$(fetch_auto_release_pullspec)"
-    echo "Using newest Ready 5.0.0-0.nightly payload:"
+    echo "Using newest Accepted 5.0.0-0.nightly payload:"
     echo "  ${RELEASE_REF}"
     echo ""
 else
@@ -585,9 +596,28 @@ fi
 
 PAYLOAD_TO_IMAGE="$(payload_to_image_nightly_whoami "${PAYLOAD_TO_IMAGE}" "${RELEASE_REF}")"
 
-AUTHFILE_RESOLVED="$(resolve_default_authfile)"
-echo "Pull secret (oc -a / podman --authfile):"
-echo "  ${AUTHFILE_RESOLVED}"
+# Only resolve a real on-disk pull secret when oc/podman will use it. --print-only
+# and --skip-oc run without a local pull secret; placeholders use AUTHFILE_REF.
+AUTHFILE_RESOLVED=""
+AUTHFILE_REF=""
+if [[ "$SKIP_OC" -eq 0 ]]; then
+    AUTHFILE_RESOLVED="$(resolve_default_authfile)"
+    AUTHFILE_REF="${AUTHFILE_RESOLVED}"
+    echo "Pull secret (oc -a / podman --authfile):"
+    echo "  ${AUTHFILE_RESOLVED}"
+else
+    if [[ -n "$AUTHFILE" ]]; then
+        AUTHFILE_REF="${AUTHFILE}"
+    else
+        AUTHFILE_REF="<PULL_SECRET or -a path>"
+    fi
+    echo "Pull secret (oc -a / podman --authfile):"
+    if [[ -n "$AUTHFILE" ]]; then
+        echo "  (not read in --print-only / --skip-oc) example commands and Dockerfile use: ${AUTHFILE}"
+    else
+        echo "  (not read in --print-only / --skip-oc; use a real -a or default auth for full builds)"
+    fi
+fi
 if [[ -n "$EXPIRES_LABEL_VALUE" ]]; then
     echo "Quay label quay.expires-after: ${EXPIRES_LABEL_VALUE}"
 else
@@ -601,12 +631,18 @@ if [[ "$SKIP_OC" -eq 0 ]]; then
         err "oc is not in PATH. Install OpenShift client or use --print-only to skip"
     fi
     echo "Resolving base OS image (oc adm release info -a ... ${RELEASE_REF} --image-for ${BASE_OS}):"
-    if ! OS_REF="$(oc adm release info -a "$AUTHFILE_RESOLVED" --image-for="$BASE_OS" "$RELEASE_REF" 2>/dev/null)"; then
+    oc_release_info_err=$(mktemp) || err "mktemp failed"
+    if ! OS_REF="$(oc adm release info -a "$AUTHFILE_RESOLVED" --image-for="$BASE_OS" "$RELEASE_REF" 2>"$oc_release_info_err")"; then
+        oc_stderr_out=$(tr -d '\0' < "$oc_release_info_err")
+        rm -f "$oc_release_info_err"
+        detail=""
+        [[ -n "$oc_stderr_out" ]] && detail=$'\n\n'"oc stderr:"$'\n'"$oc_stderr_out"
         if [[ "$BASE_OS" == "rhel-coreos-10" ]]; then
-            err "oc adm release info failed. Try --base-os rhel-coreos if this release uses RHEL 9 (rhel-coreos)."
+            err "oc adm release info failed. Try --base-os rhel-coreos if this release uses RHEL 9 (rhel-coreos).${detail}"
         fi
-        err "oc adm release info failed for --base-os ${BASE_OS}. Check pull secret and payload."
+        err "oc adm release info failed for --base-os ${BASE_OS}. Check pull secret and payload.${detail}"
     fi
+    rm -f "$oc_release_info_err"
     # Trim whitespace
     OS_REF="${OS_REF//$'\r'/}"
     OS_REF="${OS_REF//$'\n'/}"
@@ -616,7 +652,7 @@ fi
 
 if [[ "$SKIP_OC" -eq 1 ]]; then
     echo "Skipping oc. Resolve the base image with:"
-    echo "  oc adm release info -a ${AUTHFILE_RESOLVED} --image-for=${BASE_OS} ${RELEASE_REF}"
+    echo "  oc adm release info -a ${AUTHFILE_REF} --image-for=${BASE_OS} ${RELEASE_REF}"
     echo ""
 fi
 
@@ -642,7 +678,7 @@ cat <<EOF
 EOF
 
 EFFECTIVE_OS_REF="${CUSTOM_OS_IMAGE_REF:-$BUILT_OCI_REF}"
-print_release_new_cmd "$AUTHFILE_RESOLVED" "$RELEASE_REF" "$PAYLOAD_TO_IMAGE" "$BASE_OS" "$EFFECTIVE_OS_REF"
+print_release_new_cmd "$AUTHFILE_REF" "$RELEASE_REF" "$PAYLOAD_TO_IMAGE" "$BASE_OS" "$EFFECTIVE_OS_REF"
 echo ""
 
 cat <<EOF
