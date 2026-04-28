@@ -8,6 +8,7 @@ This directory contains multiple helper tools for various OpenShift cluster oper
 
 - **Resource Agent Patching**: Scripts and playbooks (recommended usage) for installing RPM packages on cluster nodes using rpm-ostree's override functionality
 - **Fencing Validation**: Tools for validating two-node cluster fencing configuration and health
+- **Custom OCP 5.x payload (optional)**: `resource-agents-build/custom-payload.sh` to build a custom RHCOS layer from the resource-agents RPM and publish a custom release image with `oc adm release new`
 
 ## Requirements
 
@@ -304,6 +305,56 @@ ansible-playbook -i ../../deploy/openshift-clusters/inventory.ini \
 This is useful when you want to validate the RPM locally before patching.
 
 **Stream 10 limitation:** `libqb-devel` is not yet available in EPEL 10. The Dockerfile builds libqb from source for `configure`/`make` validation, but skips `make rpm` since rpmbuild's `BuildRequires: libqb-devel` cannot be satisfied without the actual RPM package.
+
+### custom-payload.sh
+
+`custom-payload.sh` ties the containerized build to an OpenShift 5.x release: it resolves a nightly payload, prints the base `rhel-coreos` / `rhel-coreos-10` image from `oc adm release info`, and generates `Dockerfile.custompayload` by combining the **contents** of `Dockerfile.stream9` or `Dockerfile.stream10` (depending on `--base-os`) with an RPM-ostree override snippet—the script does **not** change `Dockerfile.stream9` or `Dockerfile.stream10` on disk. Then, unless you use **dry-run-style** flags, it runs `podman` to build and push the custom OS image and runs `oc adm release new` to publish a custom **release payload** image that points that OS layer at the correct component name (for example `rhel-coreos-10=...`).
+
+**When to use it:** after you are happy with a resource-agents RPM from `local-build-test.sh` (or an equivalent build), and you want a full custom payload image to install or test on a 5.0 line cluster—without going through the hypervisor-based `build-and-patch-resource-agents.yml` path for node RPM overrides alone.
+
+**Requirements:** `curl`, `oc`, `podman`, and `jq` or `python3` (for `--auto-release`). Pull secret handling works the same way as other `oc` / `podman` registry operations (`-a` / `PULL_SECRET_PATH`, or the default `~/.docker/config.json` / `~/.config/containers/auth.json` as documented in the script's `--help`).
+
+**Usage (from `helpers/resource-agents-build/`):**
+
+```bash
+cd helpers/resource-agents-build
+
+# Use the newest Accepted 5.0.0-0.nightly tag from the release API
+./custom-payload.sh --auto-release
+
+# Or pin a full release pullspec
+./custom-payload.sh --release registry.ci.openshift.org/ocp/release-5:5.0.0-0.nightly-...
+
+# Explicit pull secret (optional if a default auth file exists)
+./custom-payload.sh --auto-release -a /path/to/pull-secret
+
+# Only print Dockerfile and commands; do not run oc / skip real builds (see --help)
+./custom-payload.sh --auto-release --print-only
+./custom-payload.sh --auto-release --no-build
+```
+
+Run `./custom-payload.sh --help` for flags such as `--base-os` (`rhel-coreos` vs `rhel-coreos-10`), `--to-os-image`, and `--to-payload-image` (custom registry targets and tags).
+
+**Pull secret and the same registry twice:** if you use different tokens on the same registry host—for example one credential for the general `quay.io` pull path and another for a specific org such as `quay.io/rh-edge-enablement`—put them in **separate** `auths` entries, for example one key `quay.io` and another `quay.io/rh-edge-enablement`. A single `quay.io` entry may not match both paths reliably; splitting them keeps pulls and pushes unambiguous for `oc` and `podman`.
+
+ex:
+```json
+{
+        "auths": {
+           ....
+                "quay.io": {
+                        "auth": "<secret>"
+                },
+                "quay.io/eggfoobar": {
+                        "auth": "<secret_same>"
+                },
+                "quay.io/rh-edge-enablement": {
+                        "auth": "<secret_same>"
+                },
+           ....
+        }
+}
+```
 
 ## Notes
 
