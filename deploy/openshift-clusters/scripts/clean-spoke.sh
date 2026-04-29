@@ -7,6 +7,7 @@ SCRIPT_DIR=$(dirname "$0")
 DEPLOY_DIR="$(cd "${SCRIPT_DIR}/../.." && pwd)"
 
 set -o nounset
+set -o errexit
 set -o pipefail
 
 # Source instance.env for SSH_PUBLIC_KEY and other settings
@@ -22,7 +23,7 @@ fi
 # Parse spoke_cluster_name from vars/assisted.yml
 SPOKE_CLUSTER_NAME="spoke-tnf"
 if [[ -f "${DEPLOY_DIR}/openshift-clusters/vars/assisted.yml" ]]; then
-    PARSED_NAME=$(grep '^spoke_cluster_name:' "${DEPLOY_DIR}/openshift-clusters/vars/assisted.yml" | awk '{print $2}' | tr -d '"' | tr -d "'")
+    PARSED_NAME=$(grep '^spoke_cluster_name:' "${DEPLOY_DIR}/openshift-clusters/vars/assisted.yml" | awk '{print $2}' | tr -d '"' | tr -d "'" || true)
     if [[ -n "${PARSED_NAME}" ]]; then
         SPOKE_CLUSTER_NAME="${PARSED_NAME}"
     fi

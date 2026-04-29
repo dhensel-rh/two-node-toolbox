@@ -50,6 +50,7 @@
       -p '[{"op":"remove","path":"/spec/provisioningIP"}]' 2>&1
   when: prov_ip_check.stdout | length > 0
   register: prov_ip_retry
+  changed_when: "'patched' in prov_ip_retry.stdout"
   failed_when: >-
     prov_ip_retry.rc != 0 and
     'does not exist' not in prov_ip_retry.stdout
