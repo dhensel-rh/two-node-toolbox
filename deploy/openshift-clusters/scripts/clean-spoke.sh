@@ -28,6 +28,11 @@ if [[ -f "${DEPLOY_DIR}/openshift-clusters/vars/assisted.yml" ]]; then
     fi
 fi
 
+if [[ ! "${SPOKE_CLUSTER_NAME}" =~ ^[a-z0-9]([a-z0-9-]*[a-z0-9])?$ ]]; then
+    echo "Error: Invalid spoke_cluster_name '${SPOKE_CLUSTER_NAME}'."
+    exit 1
+fi
+
 # Derive the libvirt network bridge name from the cluster name
 SPOKE_NETWORK="${SPOKE_CLUSTER_NAME}"
 
@@ -48,6 +53,11 @@ fi
 SSH_CMD="ssh ${SSH_KEY_OPT} -o ConnectTimeout=10 -o StrictHostKeyChecking=no ${SSH_USER}@${INSTANCE_IP}"
 
 echo "Cleaning spoke cluster '${SPOKE_CLUSTER_NAME}' resources..."
+
+if ! ${SSH_CMD} "true" >/dev/null 2>&1; then
+    echo "Error: Unable to connect to ${SSH_USER}@${INSTANCE_IP}."
+    exit 1
+fi
 
 # Find and destroy spoke VMs
 echo ""

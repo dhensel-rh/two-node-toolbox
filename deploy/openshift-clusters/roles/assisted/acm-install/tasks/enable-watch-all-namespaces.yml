@@ -22,7 +22,10 @@
     - provisioningInterface
   register: remove_result
   changed_when: "'patched' in remove_result.stdout"
-  failed_when: false
+  failed_when: >-
+    remove_result.rc != 0 and
+    'does not exist' not in remove_result.stderr and
+    'does not exist' not in remove_result.stdout
 
 - name: Wait for metal3 pod to stabilize after provisioning change
   shell: |
@@ -44,9 +47,12 @@
 - name: Remove provisioningIP again if still present
   shell: |
     oc patch provisioning provisioning-configuration --type=json \
-      -p '[{"op":"remove","path":"/spec/provisioningIP"}]'
+      -p '[{"op":"remove","path":"/spec/provisioningIP"}]' 2>&1
   when: prov_ip_check.stdout | length > 0
   register: prov_ip_retry
+  failed_when: >-
+    prov_ip_retry.rc != 0 and
+    'does not exist' not in prov_ip_retry.stdout
 
 - name: Wait for metal3 pod restart after provisioningIP retry
   shell: |
@@ -64,6 +70,10 @@
     METAL3_POD=$(oc get pods -n openshift-machine-api \
       -l baremetal.openshift.io/cluster-baremetal-operator=metal3-state \
       --no-headers 2>/dev/null | grep -v Terminating | awk '{print $1}')
+    if [ -z "$METAL3_POD" ]; then
+      echo "WAITING: metal3 pod not found yet"
+      exit 1
+    fi
     LOGS=$(oc logs -n openshift-machine-api "$METAL3_POD" \
       -c metal3-httpd --tail=3 2>/dev/null)
     if echo "$LOGS" | grep -q "Waiting for .* to be configured"; then
@@ -73,7 +83,7 @@
     echo "OK: httpd is running"
   register: ironic_health
   until: ironic_health.rc == 0
-  retries: 20
+  retries: "{{ (metal3_stabilize_timeout / 15) | int }}"
   delay: 15
 
 - name: Display metal3 pod status
