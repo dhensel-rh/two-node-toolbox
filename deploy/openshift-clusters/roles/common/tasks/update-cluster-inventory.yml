@@ -18,7 +18,7 @@
   when: has_cluster_vms | bool
   block:
     - name: Get VM IP addresses from DHCP leases (hostname preferred)
-      script: resolve_vm_ip.sh {{ item | quote }}
+      script: "{{ role_path | default(playbook_dir + '/roles/common') }}/files/resolve_vm_ip.sh {{ item | quote }}"
       register: vm_ips
       loop: "{{ cluster_vms.stdout_lines }}"
       changed_when: false

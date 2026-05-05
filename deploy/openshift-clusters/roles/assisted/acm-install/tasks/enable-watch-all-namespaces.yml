@@ -14,12 +14,12 @@
 - name: Remove leftover provisioning fields from Provisioning CR
   shell: |
     oc patch provisioning provisioning-configuration --type=json \
-      -p '[
-        {"op":"remove","path":"/spec/provisioningIP"},
-        {"op":"remove","path":"/spec/provisioningDHCPRange"},
-        {"op":"remove","path":"/spec/provisioningNetworkCIDR"},
-        {"op":"remove","path":"/spec/provisioningInterface"}
-      ]' 2>&1
+      -p '[{"op":"remove","path":"/spec/{{ item }}"}]' 2>&1
+  loop:
+    - provisioningIP
+    - provisioningDHCPRange
+    - provisioningNetworkCIDR
+    - provisioningInterface
   register: remove_result
   changed_when: "'patched' in remove_result.stdout"
   failed_when: >-
@@ -34,6 +34,56 @@
       --no-headers 2>/dev/null | grep -v Terminating | grep -q Running
   register: metal3_pod
   until: metal3_pod.rc == 0
+  retries: "{{ (metal3_stabilize_timeout / 15) | int }}"
+  delay: 15
+
+- name: Verify provisioningIP was actually removed
+  shell: |
+    oc get provisioning provisioning-configuration \
+      -o jsonpath='{.spec.provisioningIP}' 2>/dev/null
+  register: prov_ip_check
+  changed_when: false
+
+- name: Remove provisioningIP again if still present
+  shell: |
+    oc patch provisioning provisioning-configuration --type=json \
+      -p '[{"op":"remove","path":"/spec/provisioningIP"}]' 2>&1
+  when: prov_ip_check.stdout | length > 0
+  register: prov_ip_retry
+  changed_when: "'patched' in prov_ip_retry.stdout"
+  failed_when: >-
+    prov_ip_retry.rc != 0 and
+    'does not exist' not in prov_ip_retry.stdout
+
+- name: Wait for metal3 pod restart after provisioningIP retry
+  shell: |
+    oc get pods -n openshift-machine-api \
+      -l baremetal.openshift.io/cluster-baremetal-operator=metal3-state \
+      --no-headers 2>/dev/null | grep -v Terminating | grep -q Running
+  register: metal3_pod_retry
+  until: metal3_pod_retry.rc == 0
+  retries: "{{ (metal3_stabilize_timeout / 15) | int }}"
+  delay: 15
+  when: prov_ip_retry is changed
+
+- name: Verify Ironic httpd is not stuck waiting for provisioningIP
+  shell: |
+    METAL3_POD=$(oc get pods -n openshift-machine-api \
+      -l baremetal.openshift.io/cluster-baremetal-operator=metal3-state \
+      --no-headers 2>/dev/null | grep -v Terminating | awk '{print $1}')
+    if [ -z "$METAL3_POD" ]; then
+      echo "WAITING: metal3 pod not found yet"
+      exit 1
+    fi
+    LOGS=$(oc logs -n openshift-machine-api "$METAL3_POD" \
+      -c metal3-httpd --tail=3 2>/dev/null)
+    if echo "$LOGS" | grep -q "Waiting for .* to be configured"; then
+      echo "BLOCKED: httpd waiting for provisioningIP"
+      exit 1
+    fi
+    echo "OK: httpd is running"
+  register: ironic_health
+  until: ironic_health.rc == 0
   retries: "{{ (metal3_stabilize_timeout / 15) | int }}"
   delay: 15
 
