@@ -1,0 +1,36 @@
+# VCS and CI metadata
+.git
+.github
+
+# Local / editor noise
+.DS_Store
+**/.idea/**
+**/.vscode/**
+**/*.swp
+*~
+
+# Repo housekeeping (not needed inside the image)
+.gitignore
+.dockerignore
+.cursorrules
+
+# Logs and caches
+**/*.log
+logs/
+**/__pycache__/**
+**/*.pyc
+**/*.pyo
+**/.pytest_cache/**
+**/.coverage
+**/htmlcov/**
+
+# Dependency and build output dirs
+**/node_modules/**
+**/dist/**
+**/build/**
+**/target/**
+**/*.egg-info/
+
+# Secrets and local artifacts (never ship in image context)
+**/pull-secret.json
+**/*.rpm

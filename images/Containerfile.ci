@@ -1,0 +1,13 @@
+FROM registry.ci.openshift.org/ocp/builder:rhel-9-golang-1.25-openshift-4.22
+
+ENV HOME /var/home/tools
+WORKDIR /var/home/tools
+
+COPY . .
+
+RUN INSTALL_PKGS="ansible-core python3 python3-pip python3-devel nss_wrapper" && \
+    dnf install -y $INSTALL_PKGS && \
+    ansible-galaxy collection install --timeout 120 -r deploy/openshift-clusters/collections/requirements.yml && \
+    dnf clean all && \
+    rm -rf /var/cache/dnf/* && \
+    chmod -R g+rwx /var/home/tools
