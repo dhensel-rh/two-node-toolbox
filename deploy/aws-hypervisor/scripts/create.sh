@@ -90,7 +90,7 @@ if [[ "$EC2_INSTANCE_TYPE" =~ c[0-9]+[a-z]*.metal ]]; then
 fi
 
 echo -e "==== Creating network stack ===="
-echo "${NETWORK_STACK_NAME}" >> "${SCRIPT_DIR}/../${SHARED_DIR}/to_be_removed_cf_stack_list"
+echo "${STACK_NAME}" >> "${SCRIPT_DIR}/../${SHARED_DIR}/to_be_removed_cf_stack_list"
 aws --region "$REGION" cloudformation create-stack \
     --stack-name "${NETWORK_STACK_NAME}" \
     --template-body "file://${TEMPLATES_DIR}/network-stack.yaml" \
@@ -106,7 +106,7 @@ aws --region "${REGION}" cloudformation wait stack-create-complete \
 echo "${NETWORK_STACK_NAME}" > "${SCRIPT_DIR}/../${SHARED_DIR}/network_stack_name"
 
 echo -e "==== Creating compute stack ===="
-echo "${STACK_NAME}" >> "${SCRIPT_DIR}/../${SHARED_DIR}/to_be_removed_cf_stack_list"
+echo "${NETWORK_STACK_NAME}" >> "${SCRIPT_DIR}/../${SHARED_DIR}/to_be_removed_cf_stack_list"
 aws --region "$REGION" cloudformation create-stack \
     --stack-name "${STACK_NAME}" \
     --template-body "file://${TEMPLATES_DIR}/compute-stack.yaml" \

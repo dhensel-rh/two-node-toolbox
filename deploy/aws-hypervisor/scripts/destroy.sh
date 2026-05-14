@@ -66,8 +66,12 @@ if aws --region "$REGION" cloudformation describe-stacks --stack-name "${STACK_N
     echo "Deleting compute stack '${STACK_NAME}'..."
     aws --region "$REGION" cloudformation delete-stack --stack-name "${STACK_NAME}"
     echo "Waiting for compute stack deletion..."
-    aws --region "$REGION" cloudformation wait stack-delete-complete --stack-name "${STACK_NAME}" &
-    wait "$!"
+    if ! { aws --region "$REGION" cloudformation wait stack-delete-complete --stack-name "${STACK_NAME}" & wait "$!"; }; then
+        echo "ERROR: Compute stack deletion failed or timed out." >&2
+        echo "Network stack '${NETWORK_STACK_NAME}' was NOT deleted." >&2
+        echo "Check the AWS CloudFormation console for details." >&2
+        exit 1
+    fi
 fi
 
 # Delete network stack

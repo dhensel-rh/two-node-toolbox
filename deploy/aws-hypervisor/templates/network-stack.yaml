@@ -187,6 +187,6 @@ Outputs:
       Name: !Sub "${AWS::StackName}-SGId"
   InstanceProfileArn:
     Description: IAM instance profile for compute instances
-    Value: !Ref RHELInstanceProfile
+    Value: !GetAtt RHELInstanceProfile.Arn
     Export:
       Name: !Sub "${AWS::StackName}-InstanceProfileArn"
