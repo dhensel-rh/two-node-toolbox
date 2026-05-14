@@ -1,0 +1,140 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: >-
+  Per-instance compute resources for RHEL hypervisor.
+  Imports shared network infrastructure from a network stack via cross-stack references.
+
+Conditions:
+  AddSecondaryVolume: !Not [!Equals [!Ref EC2Type, 'MetalMachine']]
+  UseCapacityReservation: !Not [!Equals [!Ref CapacityReservationId, '']]
+
+Mappings:
+  VolumeSize:
+    MetalMachine:
+      PrimaryVolumeSize: "300"
+      SecondaryVolumeSize: "0"
+    VirtualMachine:
+      PrimaryVolumeSize: "200"
+      SecondaryVolumeSize: "100"
+
+Parameters:
+  NetworkStackName:
+    Description: Name of the network stack whose exports this stack imports
+    Type: String
+  EC2Type:
+    Default: 'VirtualMachine'
+    Type: String
+  AmiId:
+    Description: Current RHEL AMI to use.
+    Type: AWS::EC2::Image::Id
+  Machinename:
+    MaxLength: 27
+    MinLength: 1
+    ConstraintDescription: Machinename
+    Description: Machinename
+    Type: String
+    Default: rhel-testbed-ec2-instance
+  HostInstanceType:
+    Default: t2.medium
+    Type: String
+  PublicKeyString:
+    Type: String
+    Description: The public key used to connect to the EC2 instance
+  CapacityReservationId:
+    Type: String
+    Description: EC2 Capacity Reservation ID (optional)
+    Default: ""
+
+Resources:
+  RHELLaunchTemplate:
+    Type: AWS::EC2::LaunchTemplate
+    Condition: UseCapacityReservation
+    Properties:
+      LaunchTemplateData:
+        CapacityReservationSpecification:
+          CapacityReservationTarget:
+            CapacityReservationId: !Ref CapacityReservationId
+
+  RHELInstance:
+    Type: AWS::EC2::Instance
+    DeletionPolicy: Delete
+    Properties:
+      ImageId: !Ref AmiId
+      IamInstanceProfile: !ImportValue
+        Fn::Sub: "${NetworkStackName}-InstanceProfileArn"
+      InstanceType: !Ref HostInstanceType
+      LaunchTemplate: !If
+        - UseCapacityReservation
+        - LaunchTemplateId: !Ref RHELLaunchTemplate
+          Version: !GetAtt RHELLaunchTemplate.LatestVersionNumber
+        - !Ref AWS::NoValue
+      NetworkInterfaces:
+        - AssociatePublicIpAddress: "False"
+          DeviceIndex: "0"
+          GroupSet:
+            - !ImportValue
+                Fn::Sub: "${NetworkStackName}-SGId"
+          SubnetId: !ImportValue
+            Fn::Sub: "${NetworkStackName}-SubnetId"
+      Tags:
+        - Key: Name
+          Value: !Join ["", [!Ref Machinename]]
+      BlockDeviceMappings:
+        - DeviceName: /dev/sda1
+          Ebs:
+            VolumeSize: !FindInMap [VolumeSize, !Ref EC2Type, PrimaryVolumeSize]
+            VolumeType: gp3
+            Iops: 16000
+        - !If
+          - AddSecondaryVolume
+          - DeviceName: /dev/sdc
+            Ebs:
+              VolumeSize: !FindInMap [VolumeSize, !Ref EC2Type, SecondaryVolumeSize]
+              VolumeType: gp3
+              Iops: 16000
+          - !Ref AWS::NoValue
+      UserData:
+        Fn::Base64: !Sub |
+          #!/bin/bash -xe
+
+          log_output_file=/tmp/init_output.txt
+
+          echo "====== Authorizing public key ======" | tee -a "$log_output_file"
+          echo "${PublicKeyString}" >> /home/ec2-user/.ssh/authorized_keys
+
+          sudo dnf install -y git make cockpit lvm2 jq |& tee -a "$log_output_file"
+          sudo systemctl enable --now cockpit.socket |& tee -a "$log_output_file"
+
+          echo "====== Getting Disk Path ======" | tee -a "$log_output_file"
+          pv_location=$(sudo lsblk -Jd | jq -r '.blockdevices[] | select(.size == "200G") | "/dev/\(.name)"')
+          echo "discovered pv location of ($pv_location)" | tee -a "$log_output_file"
+
+          echo "====== Creating PV ======" | tee -a "$log_output_file"
+          sudo pvcreate "$pv_location" |& tee -a "$log_output_file"
+
+          echo "====== Creating VG ======" | tee -a "$log_output_file"
+          sudo vgcreate rhel "$pv_location" |& tee -a "$log_output_file"
+
+  RHELElasticIP:
+    Type: AWS::EC2::EIP
+    Properties:
+      Domain: vpc
+      Tags:
+        - Key: Name
+          Value: !Ref Machinename
+
+  RHELEIPAssociation:
+    Type: AWS::EC2::EIPAssociation
+    Properties:
+      InstanceId: !Ref RHELInstance
+      AllocationId: !GetAtt RHELElasticIP.AllocationId
+
+Outputs:
+  InstanceId:
+    Description: RHEL Host Instance ID
+    Value: !Ref RHELInstance
+  PrivateIp:
+    Description: The bastion host Private DNS, will be used for cluster install pulling release image
+    Value: !GetAtt RHELInstance.PrivateIp
+  PublicIp:
+    Description: The bastion host Public IP, will be used for registering minIO server DNS
+    Value: !GetAtt RHELInstance.PublicIp
