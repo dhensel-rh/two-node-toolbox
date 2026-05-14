@@ -60,7 +60,7 @@ Resources:
     Properties:
       ImageId: !Ref AmiId
       IamInstanceProfile: !ImportValue
-        Fn::Sub: "${NetworkStackName}-InstanceProfileArn"
+        Fn::Sub: "${NetworkStackName}-InstanceProfileName"
       InstanceType: !Ref HostInstanceType
       LaunchTemplate: !If
         - UseCapacityReservation

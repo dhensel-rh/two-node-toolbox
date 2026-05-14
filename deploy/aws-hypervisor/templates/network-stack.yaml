@@ -185,8 +185,8 @@ Outputs:
     Value: !GetAtt RHELSecurityGroup.GroupId
     Export:
       Name: !Sub "${AWS::StackName}-SGId"
-  InstanceProfileArn:
+  InstanceProfileName:
     Description: IAM instance profile for compute instances
-    Value: !GetAtt RHELInstanceProfile.Arn
+    Value: !Ref RHELInstanceProfile
     Export:
-      Name: !Sub "${AWS::StackName}-InstanceProfileArn"
+      Name: !Sub "${AWS::StackName}-InstanceProfileName"
