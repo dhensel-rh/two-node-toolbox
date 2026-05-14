@@ -28,12 +28,18 @@ function cleanup_capacity_on_error() {
 
 mkdir -p "${SCRIPT_DIR}/../${SHARED_DIR}"
 
-cf_tpl_file="${SCRIPT_DIR}/../${SHARED_DIR}/${STACK_NAME}-cf-tpl.yaml"
+NETWORK_STACK_NAME="${STACK_NAME}-network"
+TEMPLATES_DIR="${SCRIPT_DIR}/../templates"
 
 function save_stack_events()
 {
   set +o errexit
-  aws --region "${REGION}" cloudformation describe-stack-events --stack-name "${STACK_NAME}" --output json > "${SCRIPT_DIR}/../${SHARED_DIR}/stack-events-${STACK_NAME}.json"
+  aws --region "${REGION}" cloudformation describe-stack-events \
+      --stack-name "${STACK_NAME}" --output json \
+      > "${SCRIPT_DIR}/../${SHARED_DIR}/stack-events-${STACK_NAME}.json" 2>/dev/null
+  aws --region "${REGION}" cloudformation describe-stack-events \
+      --stack-name "${NETWORK_STACK_NAME}" --output json \
+      > "${SCRIPT_DIR}/../${SHARED_DIR}/stack-events-${NETWORK_STACK_NAME}.json" 2>/dev/null
   set -o errexit
 }
 
@@ -83,28 +89,39 @@ if [[ "$EC2_INSTANCE_TYPE" =~ c[0-9]+[a-z]*.metal ]]; then
   ec2Type="MetalMachine"
 fi
 
-# Copy CloudFormation template from templates directory
-cp "${SCRIPT_DIR}/../templates/rhel-instance.yaml" "${cf_tpl_file}"
-
-
-echo -e "==== Start to create rhel host ===="
+echo -e "==== Creating network stack ===="
 echo "${STACK_NAME}" >> "${SCRIPT_DIR}/../${SHARED_DIR}/to_be_removed_cf_stack_list"
-aws --region "$REGION" cloudformation create-stack --stack-name "${STACK_NAME}" \
-    --template-body "file://${cf_tpl_file}" \
+aws --region "$REGION" cloudformation create-stack \
+    --stack-name "${NETWORK_STACK_NAME}" \
+    --template-body "file://${TEMPLATES_DIR}/network-stack.yaml" \
     --capabilities CAPABILITY_NAMED_IAM \
     --no-cli-pager \
     --parameters \
-        "ParameterKey=HostInstanceType,ParameterValue=${EC2_INSTANCE_TYPE}"  \
-        "ParameterKey=Machinename,ParameterValue=${STACK_NAME}"  \
+        "ParameterKey=AvailabilityZone,ParameterValue=${AVAILABILITY_ZONE}"
+
+echo "Waiting for network stack..."
+aws --region "${REGION}" cloudformation wait stack-create-complete \
+    --stack-name "${NETWORK_STACK_NAME}"
+
+echo "${NETWORK_STACK_NAME}" > "${SCRIPT_DIR}/../${SHARED_DIR}/network_stack_name"
+
+echo -e "==== Creating compute stack ===="
+echo "${NETWORK_STACK_NAME}" >> "${SCRIPT_DIR}/../${SHARED_DIR}/to_be_removed_cf_stack_list"
+aws --region "$REGION" cloudformation create-stack \
+    --stack-name "${STACK_NAME}" \
+    --template-body "file://${TEMPLATES_DIR}/compute-stack.yaml" \
+    --capabilities CAPABILITY_NAMED_IAM \
+    --no-cli-pager \
+    --parameters \
+        "ParameterKey=NetworkStackName,ParameterValue=${NETWORK_STACK_NAME}" \
+        "ParameterKey=HostInstanceType,ParameterValue=${EC2_INSTANCE_TYPE}" \
+        "ParameterKey=Machinename,ParameterValue=${STACK_NAME}" \
         "ParameterKey=AmiId,ParameterValue=${RHEL_HOST_AMI}" \
         "ParameterKey=EC2Type,ParameterValue=${ec2Type}" \
         "ParameterKey=PublicKeyString,ParameterValue=$(cat "${SSH_PUBLIC_KEY}")" \
-        "ParameterKey=CapacityReservationId,ParameterValue=${CAPACITY_RESERVATION_ID}" \
-        "ParameterKey=AvailabilityZone,ParameterValue=${AVAILABILITY_ZONE}"
+        "ParameterKey=CapacityReservationId,ParameterValue=${CAPACITY_RESERVATION_ID}"
 
-echo "Created stack"
-
-echo "Waiting for stack"
+echo "Waiting for compute stack..."
 aws --region "${REGION}" cloudformation wait stack-create-complete --stack-name "${STACK_NAME}"
 
 echo "$STACK_NAME" > "${SCRIPT_DIR}/../${SHARED_DIR}/rhel_host_stack_name"
