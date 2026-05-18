@@ -68,7 +68,8 @@ if [[ "${METHOD}" != "ipi" && "${METHOD}" != "agent" && "${METHOD}" != "kcli" ]]
 fi
 
 # Check if instance data exists
-if [[ ! -f "${DEPLOY_DIR}/aws-hypervisor/instance-data/aws-instance-id" ]]; then
+if [[ ! -f "${DEPLOY_DIR}/aws-hypervisor/instance-data/node-0/aws-instance-id" ]] \
+&& [[ ! -f "${DEPLOY_DIR}/aws-hypervisor/instance-data/aws-instance-id" ]]; then
     echo "Error: No instance found. Please run 'make deploy' first."
     exit 1
 fi

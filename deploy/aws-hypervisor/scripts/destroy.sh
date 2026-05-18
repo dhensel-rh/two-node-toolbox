@@ -8,10 +8,11 @@ set -o nounset
 set -o errexit
 set -o pipefail
 
-instance_data_dir="${SCRIPT_DIR}/../${SHARED_DIR}"
-public_address_file="${instance_data_dir}/public_address"
-ssh_user_file="${instance_data_dir}/ssh_user"
-network_stack_name_file="${instance_data_dir}/network_stack_name"
+shared_dir="$(get_shared_dir)"
+node_dir="$(get_node_dir)"
+public_address_file="${node_dir}/public_address"
+ssh_user_file="${node_dir}/ssh_user"
+network_stack_name_file="${shared_dir}/network_stack_name"
 NETWORK_STACK_NAME="${STACK_NAME}-network"
 
 # Check if we have a deployed instance
@@ -51,14 +52,14 @@ else
 fi
 
 # Cancel capacity reservation if it exists
-reservation_file="${instance_data_dir}/capacity-reservation-id"
+reservation_file="${node_dir}/capacity-reservation-id"
 if [[ -f "${reservation_file}" ]]; then
     reservation_id=$(cat "${reservation_file}")
     if [[ -n "${reservation_id}" && "${reservation_id}" != "null" ]]; then
         cancel_capacity_reservation "${reservation_id}" "${REGION}"
     fi
     rm -f "${reservation_file}"
-    rm -f "${instance_data_dir}/availability-zone"
+    rm -f "${node_dir}/availability-zone"
 fi
 
 # Delete compute stack first (CF prevents deleting network while its exports are imported)
@@ -84,10 +85,10 @@ if aws --region "$REGION" cloudformation describe-stacks --stack-name "${NETWORK
 fi
 
 # Clean up instance data directory
-if [[ -d "$instance_data_dir" ]]; then
+if [[ -d "$shared_dir" ]]; then
     echo "Cleaning up instance data..."
-    rm -rf "${instance_data_dir:?}/"*
+    rm -rf "${shared_dir:?}/"*
 fi
 
-echo "Stacks deleted successfully." > "${instance_data_dir}/.done"
+echo "Stacks deleted successfully." > "${shared_dir}/.done"
 echo "Destroy operation completed successfully."
