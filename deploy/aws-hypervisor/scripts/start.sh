@@ -31,12 +31,13 @@ function ensure_open_capacity_preference() {
 }
 
 # Check if the instance exists and get its ID
-if [[ ! -f "${SCRIPT_DIR}/../${SHARED_DIR}/aws-instance-id" ]]; then
+node_dir="$(get_node_dir)"
+if [[ ! -f "${node_dir}/aws-instance-id" ]]; then
     echo "Error: No instance found. Please run 'make deploy' first."
     exit 1
 fi
 
-INSTANCE_ID=$(cat "${SCRIPT_DIR}/../${SHARED_DIR}/aws-instance-id")
+INSTANCE_ID=$(cat "${node_dir}/aws-instance-id")
 echo "Starting instance ${INSTANCE_ID}..."
 
 # Check current instance state
@@ -84,8 +85,8 @@ esac
 HOST_PUBLIC_IP=$(aws --region "${REGION}" ec2 describe-instances --instance-ids "${INSTANCE_ID}" --query 'Reservations[0].Instances[0].PublicIpAddress' --output text --no-cli-pager)
 HOST_PRIVATE_IP=$(aws --region "${REGION}" ec2 describe-instances --instance-ids "${INSTANCE_ID}" --query 'Reservations[0].Instances[0].PrivateIpAddress' --output text --no-cli-pager)
 
-echo "${HOST_PUBLIC_IP}" > "${SCRIPT_DIR}/../${SHARED_DIR}/public_address"
-echo "${HOST_PRIVATE_IP}" > "${SCRIPT_DIR}/../${SHARED_DIR}/private_address"
+echo "${HOST_PUBLIC_IP}" > "${node_dir}/public_address"
+echo "${HOST_PRIVATE_IP}" > "${node_dir}/private_address"
 
 echo "Instance ${INSTANCE_ID} is now running."
 echo "Public IP: ${HOST_PUBLIC_IP}"
@@ -98,7 +99,7 @@ echo "Updating SSH config for aws-hypervisor..."
 # Check and restart the proxy container for immediate proxy capabilities
 echo "Checking proxy container status..."
 set +e  # Allow commands to fail for proxy container checks
-ssh -o ConnectTimeout=10 "$(cat "${SCRIPT_DIR}/../${SHARED_DIR}/ssh_user")@${HOST_PUBLIC_IP}" << 'EOF'
+ssh -o ConnectTimeout=10 "$(cat "${node_dir}/ssh_user")@${HOST_PUBLIC_IP}" << 'EOF'
     echo "Checking external-squid proxy container..."
     
     # Check if the container exists and get its status

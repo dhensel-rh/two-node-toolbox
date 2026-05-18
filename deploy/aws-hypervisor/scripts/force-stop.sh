@@ -44,12 +44,13 @@ wait_for_instance_stopped() {
 }
 
 # Check if the instance exists and get its ID
-if [[ ! -f "${SCRIPT_DIR}/../${SHARED_DIR}/aws-instance-id" ]]; then
+node_dir="$(get_node_dir)"
+if [[ ! -f "${node_dir}/aws-instance-id" ]]; then
     echo "Error: No instance found. Please run 'make deploy' first."
     exit 1
 fi
 
-INSTANCE_ID=$(cat "${SCRIPT_DIR}/../${SHARED_DIR}/aws-instance-id")
+INSTANCE_ID=$(cat "${node_dir}/aws-instance-id")
 
 # Get current instance state
 INSTANCE_STATE=$(aws --region "${REGION}" ec2 describe-instances --instance-ids "${INSTANCE_ID}" --query 'Reservations[0].Instances[0].State.Name' --output text --no-cli-pager)

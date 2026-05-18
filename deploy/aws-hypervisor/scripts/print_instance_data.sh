@@ -3,7 +3,8 @@ SCRIPT_DIR=$(dirname "$0")
 # shellcheck source=/dev/null
 source "${SCRIPT_DIR}/common.sh"
 
-echo "Stack: $(cat "${SCRIPT_DIR}/../${SHARED_DIR}/rhel_host_stack_name")"
-echo "Host: $(cat "${SCRIPT_DIR}/../${SHARED_DIR}/public_address")"
-echo "User: $(cat "${SCRIPT_DIR}/../${SHARED_DIR}/ssh_user")"
-echo "Cockpit URL: http://$(cat "${SCRIPT_DIR}/../${SHARED_DIR}/public_address"):9090"
+node_dir="$(get_node_dir)"
+echo "Stack: $(cat "${node_dir}/rhel_host_stack_name")"
+echo "Host: $(cat "${node_dir}/public_address")"
+echo "User: $(cat "${node_dir}/ssh_user")"
+echo "Cockpit URL: http://$(cat "${node_dir}/public_address"):9090"

@@ -43,12 +43,13 @@ wait_for_instance_stopped() {
 }
 
 # Check if the instance exists and get its ID
-if [[ ! -f "${SCRIPT_DIR}/../${SHARED_DIR}/aws-instance-id" ]]; then
+node_dir="$(get_node_dir)"
+if [[ ! -f "${node_dir}/aws-instance-id" ]]; then
     echo "Error: No instance found. Please run 'make deploy' first."
     exit 1
 fi
 
-INSTANCE_ID=$(cat "${SCRIPT_DIR}/../${SHARED_DIR}/aws-instance-id")
+INSTANCE_ID=$(cat "${node_dir}/aws-instance-id")
 echo "Stopping instance ${INSTANCE_ID}..."
 
 # Check current instance state
@@ -67,7 +68,7 @@ if [[ "${INSTANCE_STATE}" == "running" ]]; then
         
         # Check if there are running dev-scripts deployments
         set +e  # Allow commands to fail
-        ssh -o ConnectTimeout=10 "$(cat "${SCRIPT_DIR}/../${SHARED_DIR}/ssh_user")@${HOST_PUBLIC_IP}" "test -d ~/openshift-metal3" 2>/dev/null
+        ssh -o ConnectTimeout=10 "$(cat "${node_dir}/ssh_user")@${HOST_PUBLIC_IP}" "test -d ~/openshift-metal3" 2>/dev/null
         DEV_SCRIPTS_EXISTS=$?
         set -e
         
@@ -76,7 +77,7 @@ if [[ "${INSTANCE_STATE}" == "running" ]]; then
             
             # Check for running VMs
             set +e  # Allow commands to fail
-            RUNNING_VMS=$(ssh -o ConnectTimeout=10 "$(cat "${SCRIPT_DIR}/../${SHARED_DIR}/ssh_user")@${HOST_PUBLIC_IP}" << 'EOF'
+            RUNNING_VMS=$(ssh -o ConnectTimeout=10 "$(cat "${node_dir}/ssh_user")@${HOST_PUBLIC_IP}" << 'EOF'
                 set -e
                 cd ~/openshift-metal3/dev-scripts
                 

@@ -13,20 +13,22 @@ INVENTORY_DIR="${SCRIPT_DIR}/../../openshift-clusters"
 INVENTORY_FILE="${INVENTORY_DIR}/inventory.ini"
 INVENTORY_TEMPLATE="${INVENTORY_DIR}/inventory.ini.sample"
 
+node_dir="$(get_node_dir)"
+
 # Check if instance data exists
-if [[ ! -f "${SCRIPT_DIR}/../${SHARED_DIR}/public_address" ]]; then
+if [[ ! -f "${node_dir}/public_address" ]]; then
     echo "Error: No public address found. Please run 'make deploy' first."
     exit 1
 fi
 
-if [[ ! -f "${SCRIPT_DIR}/../${SHARED_DIR}/ssh_user" ]]; then
+if [[ ! -f "${node_dir}/ssh_user" ]]; then
     echo "Error: No ssh user found. Please run 'make deploy' first."
     exit 1
 fi
 
 # Read instance data
-PUBLIC_IP="$(< "${SCRIPT_DIR}/../${SHARED_DIR}/public_address" tr -d '\n')"
-SSH_USER="$(< "${SCRIPT_DIR}/../${SHARED_DIR}/ssh_user" tr -d '\n')"
+PUBLIC_IP="$(< "${node_dir}/public_address" tr -d '\n')"
+SSH_USER="$(< "${node_dir}/ssh_user" tr -d '\n')"
 
 echo "Updating inventory with:"
 echo "  User: ${SSH_USER}"
