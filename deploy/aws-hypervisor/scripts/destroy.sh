@@ -88,7 +88,7 @@ fi
 if [[ -d "$shared_dir" ]]; then
     echo "Cleaning up instance data..."
     rm -rf "${shared_dir:?}/"*
+    echo "Stacks deleted successfully." > "${shared_dir}/.done"
 fi
 
-echo "Stacks deleted successfully." > "${shared_dir}/.done"
 echo "Destroy operation completed successfully."
