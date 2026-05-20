@@ -17,13 +17,19 @@ set -o nounset
 set -o errexit
 set -o pipefail
 
+# Resolve per-node directory (multi-node layout) with fallback for legacy deployments
+NODE_DIR="${SHARED_DIR}/node-0"
+if [[ ! -d "${NODE_DIR}" ]]; then
+    NODE_DIR="${SHARED_DIR}"
+fi
+
 # Check if the instance exists and get its ID
-if [[ ! -f "${SHARED_DIR}/aws-instance-id" ]]; then
+if [[ ! -f "${NODE_DIR}/aws-instance-id" ]]; then
     echo "Error: No instance found. Please run 'make deploy' first."
     exit 1
 fi
 
-INSTANCE_ID=$(cat "${SHARED_DIR}/aws-instance-id")
+INSTANCE_ID=$(cat "${NODE_DIR}/aws-instance-id")
 echo "Shutting down OpenShift cluster VMs on instance ${INSTANCE_ID}..."
 
 # Check current instance state
@@ -47,7 +53,7 @@ echo "Connecting to instance at ${HOST_PUBLIC_IP}..."
 
 # Check if dev-scripts directory exists
 set +e  # Allow commands to fail
-ssh -o ConnectTimeout=10 "$(cat "${SHARED_DIR}/ssh_user")@${HOST_PUBLIC_IP}" "test -d ~/openshift-metal3" 2>/dev/null
+ssh -o ConnectTimeout=10 "$(cat "${NODE_DIR}/ssh_user")@${HOST_PUBLIC_IP}" "test -d ~/openshift-metal3" 2>/dev/null
 DEV_SCRIPTS_EXISTS=$?
 set -e
 
@@ -74,10 +80,10 @@ else
 fi
 
 # Perform orderly shutdown of the cluster VMs
-ssh "$(cat "${SHARED_DIR}/ssh_user")@${HOST_PUBLIC_IP}" << 'EOF'
+ssh "$(cat "${NODE_DIR}/ssh_user")@${HOST_PUBLIC_IP}" << 'EOF'
     set -e
     cd ~/openshift-metal3/dev-scripts
-    
+
     # Source the config to get cluster name
     source common.sh
     

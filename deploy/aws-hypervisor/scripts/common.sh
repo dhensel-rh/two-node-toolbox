@@ -14,6 +14,22 @@ export RHEL_VERSION="${RHEL_VERSION:-9.6}"
 export ENABLE_CAPACITY_RESERVATION="${ENABLE_CAPACITY_RESERVATION:-true}"
 export CAPACITY_RESERVATION_DURATION_MINUTES="${CAPACITY_RESERVATION_DURATION_MINUTES:-60}"
 
+export NODE_ID="${NODE_ID:-node-0}"
+
+get_shared_dir() {
+  echo "${SCRIPT_DIR}/../${SHARED_DIR}"
+}
+
+get_node_dir() {
+  local node_dir="${SCRIPT_DIR}/../${SHARED_DIR}/${NODE_ID}"
+  # Fallback for unported scripts: flat layout means pre-subdir deployment
+  if [[ ! -d "$node_dir" && -f "${SCRIPT_DIR}/../${SHARED_DIR}/aws-instance-id" ]]; then
+    echo "${SCRIPT_DIR}/../${SHARED_DIR}"
+    return
+  fi
+  echo "$node_dir"
+}
+
 readonly COLOR_RED='\033[0;31m'
 readonly COLOR_YELLOW='\033[0;33m'
 readonly COLOR_BLUE='\033[0;34m'
@@ -65,8 +81,10 @@ function get_rhel_ami() {
 }
 
 function copy_configure_script() {
+    local node_dir
+    node_dir="$(get_node_dir)"
     local instance_ip
-    instance_ip="$(cat "${SCRIPT_DIR}/../${SHARED_DIR}/ssh_user")@$(cat "${SCRIPT_DIR}/../${SHARED_DIR}/public_address")"
+    instance_ip="$(cat "${node_dir}/ssh_user")@$(cat "${node_dir}/public_address")"
     msg_info "copying over config ${SCRIPT_DIR}/configure.sh and making it executable"
     scp "${SCRIPT_DIR}/configure.sh" "$instance_ip:~/configure.sh"
     ssh "$instance_ip" 'chmod +x ~/configure.sh'
@@ -74,8 +92,10 @@ function copy_configure_script() {
 
 # shellcheck disable=SC2029 # we want interpolation for the stack name in the ssh command
 function set_aws_machine_hostname() {
+    local node_dir
+    node_dir="$(get_node_dir)"
     local instance_ip
-    instance_ip="$(cat "${SCRIPT_DIR}/../${SHARED_DIR}/ssh_user")@$(cat "${SCRIPT_DIR}/../${SHARED_DIR}/public_address")"
+    instance_ip="$(cat "${node_dir}/ssh_user")@$(cat "${node_dir}/public_address")"
     msg_info "setting machine hostname to aws-${STACK_NAME}"
     ssh "$instance_ip" "sudo hostnamectl set-hostname aws-$STACK_NAME"
 }

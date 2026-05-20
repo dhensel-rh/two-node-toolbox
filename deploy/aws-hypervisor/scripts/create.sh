@@ -14,19 +14,25 @@ trap 'save_stack_events; cleanup_capacity_on_error' EXIT TERM INT
 # Cleanup function for capacity reservation on error
 function cleanup_capacity_on_error() {
     set +o errexit
-    local reservation_file="${SCRIPT_DIR}/../${SHARED_DIR}/capacity-reservation-id"
+    local ndir
+    ndir="$(get_node_dir)"
+    local reservation_file="${ndir}/capacity-reservation-id"
     # Only cleanup if stack creation didn't complete successfully
-    if [[ -f "${reservation_file}" && ! -f "${SCRIPT_DIR}/../${SHARED_DIR}/.stack-created" ]]; then
+    if [[ -f "${reservation_file}" && ! -f "${ndir}/.stack-created" ]]; then
         local reservation_id
         reservation_id=$(cat "${reservation_file}")
         cancel_capacity_reservation "${reservation_id}" "${REGION}"
         rm -f "${reservation_file}"
-        rm -f "${SCRIPT_DIR}/../${SHARED_DIR}/availability-zone"
+        rm -f "${ndir}/availability-zone"
     fi
     set -o errexit
 }
 
-mkdir -p "${SCRIPT_DIR}/../${SHARED_DIR}"
+mkdir -p "$(get_shared_dir)"
+mkdir -p "$(get_node_dir)"
+
+node_dir="$(get_node_dir)"
+shared_dir="$(get_shared_dir)"
 
 NETWORK_STACK_NAME="${STACK_NAME}-network"
 TEMPLATES_DIR="${SCRIPT_DIR}/../templates"
@@ -36,10 +42,10 @@ function save_stack_events()
   set +o errexit
   aws --region "${REGION}" cloudformation describe-stack-events \
       --stack-name "${STACK_NAME}" --output json \
-      > "${SCRIPT_DIR}/../${SHARED_DIR}/stack-events-${STACK_NAME}.json" 2>/dev/null
+      > "$(get_node_dir)/stack-events-${STACK_NAME}.json" 2>/dev/null
   aws --region "${REGION}" cloudformation describe-stack-events \
       --stack-name "${NETWORK_STACK_NAME}" --output json \
-      > "${SCRIPT_DIR}/../${SHARED_DIR}/stack-events-${NETWORK_STACK_NAME}.json" 2>/dev/null
+      > "$(get_shared_dir)/stack-events-${NETWORK_STACK_NAME}.json" 2>/dev/null
   set -o errexit
 }
 
@@ -57,7 +63,7 @@ if [[ -z "${RHEL_HOST_AMI}" ]]; then
   exit 1
 fi
 
-echo "ec2-user" > "${SCRIPT_DIR}/../${SHARED_DIR}/ssh_user"
+echo "ec2-user" > "${node_dir}/ssh_user"
 
 echo -e "AMI ID: $RHEL_HOST_AMI"
 echo -e "Machine Type: $EC2_INSTANCE_TYPE"
@@ -72,8 +78,8 @@ if [[ "${ENABLE_CAPACITY_RESERVATION}" == "true" ]]; then
         AVAILABILITY_ZONE=$(echo "${reservation_result}" | awk '{print $2}')
 
         # Store for cleanup
-        echo "${CAPACITY_RESERVATION_ID}" > "${SCRIPT_DIR}/../${SHARED_DIR}/capacity-reservation-id"
-        echo "${AVAILABILITY_ZONE}" > "${SCRIPT_DIR}/../${SHARED_DIR}/availability-zone"
+        echo "${CAPACITY_RESERVATION_ID}" > "${node_dir}/capacity-reservation-id"
+        echo "${AVAILABILITY_ZONE}" > "${node_dir}/availability-zone"
 
         msg_info "Capacity guaranteed in ${AVAILABILITY_ZONE}"
     else
@@ -90,7 +96,7 @@ if [[ "$EC2_INSTANCE_TYPE" =~ c[0-9]+[a-z]*.metal ]]; then
 fi
 
 echo -e "==== Creating network stack ===="
-echo "${STACK_NAME}" >> "${SCRIPT_DIR}/../${SHARED_DIR}/to_be_removed_cf_stack_list"
+echo "${STACK_NAME}" >> "${shared_dir}/to_be_removed_cf_stack_list"
 aws --region "$REGION" cloudformation create-stack \
     --stack-name "${NETWORK_STACK_NAME}" \
     --template-body "file://${TEMPLATES_DIR}/network-stack.yaml" \
@@ -103,10 +109,10 @@ echo "Waiting for network stack..."
 aws --region "${REGION}" cloudformation wait stack-create-complete \
     --stack-name "${NETWORK_STACK_NAME}"
 
-echo "${NETWORK_STACK_NAME}" > "${SCRIPT_DIR}/../${SHARED_DIR}/network_stack_name"
+echo "${NETWORK_STACK_NAME}" > "${shared_dir}/network_stack_name"
 
 echo -e "==== Creating compute stack ===="
-echo "${NETWORK_STACK_NAME}" >> "${SCRIPT_DIR}/../${SHARED_DIR}/to_be_removed_cf_stack_list"
+echo "${NETWORK_STACK_NAME}" >> "${shared_dir}/to_be_removed_cf_stack_list"
 aws --region "$REGION" cloudformation create-stack \
     --stack-name "${STACK_NAME}" \
     --template-body "file://${TEMPLATES_DIR}/compute-stack.yaml" \
@@ -124,12 +130,12 @@ aws --region "$REGION" cloudformation create-stack \
 echo "Waiting for compute stack..."
 aws --region "${REGION}" cloudformation wait stack-create-complete --stack-name "${STACK_NAME}"
 
-echo "$STACK_NAME" > "${SCRIPT_DIR}/../${SHARED_DIR}/rhel_host_stack_name"
+echo "$STACK_NAME" > "${node_dir}/rhel_host_stack_name"
 # shellcheck disable=SC2016
 INSTANCE_ID="$(aws --region "${REGION}" cloudformation describe-stacks --stack-name "${STACK_NAME}" \
 --query 'Stacks[].Outputs[?OutputKey == `InstanceId`].OutputValue' --output text)"
 echo "Instance ${INSTANCE_ID}"
-echo "${INSTANCE_ID}" > "${SCRIPT_DIR}/../${SHARED_DIR}/aws-instance-id"
+echo "${INSTANCE_ID}" > "${node_dir}/aws-instance-id"
 # shellcheck disable=SC2016
 HOST_PUBLIC_IP="$(aws --region "${REGION}" cloudformation describe-stacks --stack-name "${STACK_NAME}" \
   --query 'Stacks[].Outputs[?OutputKey == `PublicIp`].OutputValue' --output text)"
@@ -137,8 +143,8 @@ HOST_PUBLIC_IP="$(aws --region "${REGION}" cloudformation describe-stacks --stac
 HOST_PRIVATE_IP="$(aws --region "${REGION}" cloudformation describe-stacks --stack-name "${STACK_NAME}" \
   --query 'Stacks[].Outputs[?OutputKey == `PrivateIp`].OutputValue' --output text)"
 
-echo "${HOST_PUBLIC_IP}" > "${SCRIPT_DIR}/../${SHARED_DIR}/public_address"
-echo "${HOST_PRIVATE_IP}" > "${SCRIPT_DIR}/../${SHARED_DIR}/private_address"
+echo "${HOST_PUBLIC_IP}" > "${node_dir}/public_address"
+echo "${HOST_PRIVATE_IP}" > "${node_dir}/private_address"
 
 echo "Waiting up to 10 mins for RHEL host to be up."
 timeout 10m aws ec2 wait instance-status-ok --instance-id "${INSTANCE_ID}" --no-cli-pager
@@ -166,10 +172,10 @@ echo "updating sshconfig for aws-hypervisor"
 copy_configure_script
 set_aws_machine_hostname
 
-scp "$(cat "${SCRIPT_DIR}/../${SHARED_DIR}/ssh_user")@${HOST_PUBLIC_IP}:/tmp/init_output.txt" "${SCRIPT_DIR}/../${SHARED_DIR}/init_output.txt"
+scp "$(cat "${node_dir}/ssh_user")@${HOST_PUBLIC_IP}:/tmp/init_output.txt" "${node_dir}/init_output.txt"
 
 # Mark stack creation as successful (prevents capacity cleanup on exit)
-touch "${SCRIPT_DIR}/../${SHARED_DIR}/.stack-created"
+touch "${node_dir}/.stack-created"
 
 # Release capacity reservation now that instance is running
 # The reservation served its purpose (guaranteeing capacity at creation time)
@@ -188,8 +194,8 @@ if [[ -n "${CAPACITY_RESERVATION_ID}" ]]; then
     cancel_capacity_reservation "${CAPACITY_RESERVATION_ID}" "${REGION}"
 
     # Clean up local files
-    rm -f "${SCRIPT_DIR}/../${SHARED_DIR}/capacity-reservation-id"
-    rm -f "${SCRIPT_DIR}/../${SHARED_DIR}/availability-zone"
+    rm -f "${node_dir}/capacity-reservation-id"
+    rm -f "${node_dir}/availability-zone"
 
     msg_info "Capacity reservation released successfully"
 fi
