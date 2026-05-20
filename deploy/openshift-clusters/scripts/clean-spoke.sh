@@ -40,7 +40,7 @@ SPOKE_NETWORK="${SPOKE_CLUSTER_NAME}"
 
 # Get SSH connection info
 INSTANCE_IP=$(cat "${DEPLOY_DIR}/aws-hypervisor/instance-data/node-0/public_address" 2>/dev/null \
-  || cat "${DEPLOY_DIR}/aws-hypervisor/instance-data/public_address" 2>/dev/null)
+  || cat "${DEPLOY_DIR}/aws-hypervisor/instance-data/public_address" 2>/dev/null || echo "")
 SSH_USER=$(cat "${DEPLOY_DIR}/aws-hypervisor/instance-data/node-0/ssh_user" 2>/dev/null \
   || cat "${DEPLOY_DIR}/aws-hypervisor/instance-data/ssh_user" 2>/dev/null || echo "ec2-user")
 

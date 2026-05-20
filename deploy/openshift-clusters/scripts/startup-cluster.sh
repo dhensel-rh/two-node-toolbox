@@ -17,13 +17,19 @@ set -o nounset
 set -o errexit
 set -o pipefail
 
+# Resolve per-node directory (multi-node layout) with fallback for legacy deployments
+NODE_DIR="${SHARED_DIR}/node-0"
+if [[ ! -d "${NODE_DIR}" ]]; then
+    NODE_DIR="${SHARED_DIR}"
+fi
+
 # Check if the instance exists and get its ID
-if [[ ! -f "${SHARED_DIR}/aws-instance-id" ]]; then
+if [[ ! -f "${NODE_DIR}/aws-instance-id" ]]; then
     echo "Error: No instance found. Please run 'make deploy' first."
     exit 1
 fi
 
-INSTANCE_ID=$(cat "${SHARED_DIR}/aws-instance-id")
+INSTANCE_ID=$(cat "${NODE_DIR}/aws-instance-id")
 echo "Starting up OpenShift cluster VMs on instance ${INSTANCE_ID}..."
 
 # Check cluster topology from state file
@@ -55,7 +61,7 @@ echo "Connecting to instance at ${HOST_PUBLIC_IP}..."
 
 # Check if dev-scripts directory exists
 set +e  # Allow commands to fail
-ssh -o ConnectTimeout=10 "$(cat "${SHARED_DIR}/ssh_user")@${HOST_PUBLIC_IP}" "test -d ~/openshift-metal3" 2>/dev/null
+ssh -o ConnectTimeout=10 "$(cat "${NODE_DIR}/ssh_user")@${HOST_PUBLIC_IP}" "test -d ~/openshift-metal3" 2>/dev/null
 DEV_SCRIPTS_EXISTS=$?
 set -e
 
@@ -68,7 +74,7 @@ fi
 echo "Found dev-scripts directory. Starting up OpenShift cluster VMs..."
 
 # Start the cluster VMs remotely
-ssh "$(cat "${SHARED_DIR}/ssh_user")@${HOST_PUBLIC_IP}" << 'EOF'
+ssh "$(cat "${NODE_DIR}/ssh_user")@${HOST_PUBLIC_IP}" << 'EOF'
     set -e
     cd ~/openshift-metal3/dev-scripts
     
@@ -170,7 +176,7 @@ if [[ "${CLUSTER_TOPOLOGY}" == "fencing" ]]; then
     echo ""
     echo "Fencing topology detected. Ensuring sushy-tools BMC simulator is running..."
 
-    ssh "$(cat "${SHARED_DIR}/ssh_user")@${HOST_PUBLIC_IP}" << 'EOF'
+    ssh "$(cat "${NODE_DIR}/ssh_user")@${HOST_PUBLIC_IP}" << 'EOF'
         # Check if sushy-tools container exists (dev-scripts deployment)
         if sudo podman container exists sushy-tools 2>/dev/null; then
             CONTAINER_STATUS=$(sudo podman inspect sushy-tools --format '{{.State.Status}}' 2>/dev/null || echo "unknown")
