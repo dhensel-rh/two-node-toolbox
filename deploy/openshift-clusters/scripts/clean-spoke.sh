@@ -6,17 +6,17 @@
 SCRIPT_DIR=$(dirname "$0")
 DEPLOY_DIR="$(cd "${SCRIPT_DIR}/../.." && pwd)"
 
+# shellcheck source=/dev/null
+source "${DEPLOY_DIR}/aws-hypervisor/scripts/common.sh"
+
 set -o nounset
 set -o errexit
 set -o pipefail
 
-# Source instance.env for SSH_PUBLIC_KEY and other settings
-# shellcheck source=/dev/null
-source "${DEPLOY_DIR}/aws-hypervisor/instance.env"
+NODE_DIR="$(get_node_dir)"
 
 # Check if instance data exists
-if [[ ! -f "${DEPLOY_DIR}/aws-hypervisor/instance-data/node-0/aws-instance-id" ]] \
-&& [[ ! -f "${DEPLOY_DIR}/aws-hypervisor/instance-data/aws-instance-id" ]]; then
+if [[ ! -f "${NODE_DIR}/aws-instance-id" ]]; then
     echo "Error: No instance found. Please run 'make deploy' first."
     exit 1
 fi
@@ -39,10 +39,8 @@ fi
 SPOKE_NETWORK="${SPOKE_CLUSTER_NAME}"
 
 # Get SSH connection info
-INSTANCE_IP=$(cat "${DEPLOY_DIR}/aws-hypervisor/instance-data/node-0/public_address" 2>/dev/null \
-  || cat "${DEPLOY_DIR}/aws-hypervisor/instance-data/public_address" 2>/dev/null || echo "")
-SSH_USER=$(cat "${DEPLOY_DIR}/aws-hypervisor/instance-data/node-0/ssh_user" 2>/dev/null \
-  || cat "${DEPLOY_DIR}/aws-hypervisor/instance-data/ssh_user" 2>/dev/null || echo "ec2-user")
+INSTANCE_IP=$(cat "${NODE_DIR}/public_address" 2>/dev/null || echo "")
+SSH_USER=$(cat "${NODE_DIR}/ssh_user" 2>/dev/null || echo "ec2-user")
 
 if [[ -z "${INSTANCE_IP}" ]]; then
     echo "Error: Could not determine instance IP."

@@ -4,24 +4,14 @@
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 DEPLOY_DIR="$(cd "${SCRIPT_DIR}/../../" && pwd)"
 
-# Source the instance.env file with absolute path
 # shellcheck source=/dev/null
-source "${DEPLOY_DIR}/aws-hypervisor/instance.env"
-
-# Resolve SHARED_DIR to absolute path if it's relative
-if [[ "${SHARED_DIR}" != /* ]]; then
-    export SHARED_DIR="${DEPLOY_DIR}/aws-hypervisor/${SHARED_DIR}"
-fi
+source "${DEPLOY_DIR}/aws-hypervisor/scripts/common.sh"
 
 set -o nounset
 set -o errexit
 set -o pipefail
 
-# Resolve per-node directory (multi-node layout) with fallback for legacy deployments
-NODE_DIR="${SHARED_DIR}/node-0"
-if [[ ! -d "${NODE_DIR}" ]]; then
-    NODE_DIR="${SHARED_DIR}"
-fi
+NODE_DIR="$(get_node_dir)"
 
 # Check if the instance exists and get its ID
 if [[ ! -f "${NODE_DIR}/aws-instance-id" ]]; then
@@ -33,7 +23,7 @@ INSTANCE_ID=$(cat "${NODE_DIR}/aws-instance-id")
 echo "Starting up OpenShift cluster VMs on instance ${INSTANCE_ID}..."
 
 # Check cluster topology from state file
-CLUSTER_STATE_FILE="${SHARED_DIR}/cluster-vm-state.json"
+CLUSTER_STATE_FILE="$(get_shared_dir)/cluster-vm-state.json"
 CLUSTER_TOPOLOGY=""
 if [[ -f "${CLUSTER_STATE_FILE}" ]]; then
     CLUSTER_TOPOLOGY=$(grep -o '"topology":[[:space:]]*"[^"]*"' "${CLUSTER_STATE_FILE}" | cut -d'"' -f4 2>/dev/null || echo "")
