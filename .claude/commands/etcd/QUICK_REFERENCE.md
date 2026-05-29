@@ -105,21 +105,24 @@ ansible cluster_vms -i deploy/openshift-clusters/inventory.ini -m shell -a \
 
 **Symptoms:**
 - `pcs status` shows: `etcd monitor returned 'error' (master-X must force a new cluster)`
-- Both nodes have etcd running but with different cluster IDs
-- CIB attributes show different `cluster_id` values
+- Both nodes have etcd running as independent single-member clusters
+- Both nodes report `standalone_node` for themselves in CIB
+- Note: `cluster_id` may still match — `force-new-cluster` preserves it
 
 **Root Cause:**
 Network partition or simultaneous failures caused both nodes to start independent etcd clusters.
 
 **Diagnosis:**
 ```bash
-# Check cluster IDs on both nodes
+# Check for split-brain via standalone_node (reliable — both nodes claiming
+# standalone for themselves confirms split-brain, even if cluster_id matches)
 ansible cluster_vms -i deploy/openshift-clusters/inventory.ini -m shell -a \
-  "sudo crm_attribute -G -n cluster_id" -b
+  "sudo crm_attribute --query --name standalone_node" -b
 
-# Check which node is standalone
+# Supplementary: check cluster IDs (catches snapshot-restore divergence
+# but NOT force-new-cluster splits, since force-new-cluster preserves the ID)
 ansible cluster_vms -i deploy/openshift-clusters/inventory.ini -m shell -a \
-  "sudo crm_attribute -G -n standalone_node" -b
+  "sudo crm_attribute --type nodes --query --name cluster_id" -b
 
 # Alternative: Query etcd directly for member state
 ansible cluster_vms -i deploy/openshift-clusters/inventory.ini -m shell -a \

@@ -494,8 +494,9 @@ sudo journalctl -u pacemaker --grep fence --since "1 hour ago"
 
 **Ungraceful Disruption** (4.20+):
 - Unreachable node is fenced (powered off)
-- Surviving node restarts etcd as cluster-of-one
-- New cluster ID is assigned
+- Surviving node restarts etcd with --force-new-cluster
+- Cluster ID is preserved (force-new-cluster reuses existing data, does not
+  generate a new ID)
 - Failed node discards old DB and resyncs on restart
 
 ## Available Remediation Tools
