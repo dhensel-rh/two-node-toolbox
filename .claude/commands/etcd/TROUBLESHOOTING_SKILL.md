@@ -266,7 +266,7 @@ Based on your analysis, provide:
 **Key Indicators:**
 - standalone_node: which node (if any) is running alone
 - learner_node: which node (if any) is rejoining
-- force_new_cluster: which node should bootstrap new cluster
+- force_new_cluster: which node should rewrite etcd membership (cluster ID preserved)
 - cluster_id: must match between nodes in healthy state
 - member_id: etcd member ID for each node
 
@@ -476,7 +476,7 @@ sudo journalctl -u pacemaker --grep fence --since "1 hour ago"
 ### Cluster States
 - **Standalone**: Single node running as "cluster-of-one"
 - **Learner**: Node rejoining cluster, not yet voting member
-- **Force-new-cluster**: Flag to bootstrap new cluster from single node
+- **Force-new-cluster**: Flag to rewrite etcd membership as single node (cluster ID preserved)
 
 ### Critical Attributes
 - `standalone_node` - Which node is running standalone
@@ -494,8 +494,9 @@ sudo journalctl -u pacemaker --grep fence --since "1 hour ago"
 
 **Ungraceful Disruption** (4.20+):
 - Unreachable node is fenced (powered off)
-- Surviving node restarts etcd as cluster-of-one
-- New cluster ID is assigned
+- Surviving node restarts etcd with --force-new-cluster
+- Cluster ID is preserved (force-new-cluster reuses existing data, does not
+  generate a new ID)
 - Failed node discards old DB and resyncs on restart
 
 ## Available Remediation Tools
@@ -550,13 +551,13 @@ ansible-playbook helpers/force-new-cluster.yml -i deploy/openshift-clusters/inve
 - Etcd is not running on either node and won't start
 - After ungraceful disruptions that left cluster in inconsistent state
 - Manual recovery attempts have failed
-- Need to bootstrap from one node as new cluster
+- Need to rewrite etcd membership from one node (cluster ID preserved)
 
 **Precautions:**
 - Only use when normal recovery procedures fail
 - Ensure follower node can afford to lose its etcd data
 - Detected leader will become the source of truth
-- This creates a NEW cluster, follower will resync from leader
+- This rewrites etcd membership (cluster ID preserved), follower will resync from leader
 
 ## Reference Documentation
 
