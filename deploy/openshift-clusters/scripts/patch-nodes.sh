@@ -5,13 +5,15 @@ SCRIPT_DIR=$(dirname "$0")
 # Get the deploy directory (two levels up from scripts)
 DEPLOY_DIR="$(cd "${SCRIPT_DIR}/../.." && pwd)"
 
+# shellcheck source=/dev/null
+source "${DEPLOY_DIR}/aws-hypervisor/scripts/common.sh"
+
 set -o nounset
 set -o errexit
 set -o pipefail
 
 # Check if instance data exists
-if [[ ! -f "${DEPLOY_DIR}/aws-hypervisor/instance-data/node-0/aws-instance-id" ]] \
-&& [[ ! -f "${DEPLOY_DIR}/aws-hypervisor/instance-data/aws-instance-id" ]]; then
+if [[ ! -f "$(get_node_dir)/aws-instance-id" ]]; then
     echo "Error: No instance found. Please run 'make deploy' first."
     exit 1
 fi

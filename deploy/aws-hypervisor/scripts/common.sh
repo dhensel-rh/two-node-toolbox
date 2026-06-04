@@ -1,7 +1,8 @@
 #!/bin/bash
 SCRIPT_DIR=$(dirname "$0")
+COMMON_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=/dev/null
-source "${SCRIPT_DIR}/../instance.env"
+source "${COMMON_DIR}/../instance.env"
 
 # Set defaults
 export STACK_NAME="${STACK_NAME:-${USER}-dev}"
@@ -17,14 +18,13 @@ export CAPACITY_RESERVATION_DURATION_MINUTES="${CAPACITY_RESERVATION_DURATION_MI
 export NODE_ID="${NODE_ID:-node-0}"
 
 get_shared_dir() {
-  echo "${SCRIPT_DIR}/../${SHARED_DIR}"
+  echo "${COMMON_DIR}/../${SHARED_DIR}"
 }
 
 get_node_dir() {
-  local node_dir="${SCRIPT_DIR}/../${SHARED_DIR}/${NODE_ID}"
-  # Fallback for unported scripts: flat layout means pre-subdir deployment
-  if [[ ! -d "$node_dir" && -f "${SCRIPT_DIR}/../${SHARED_DIR}/aws-instance-id" ]]; then
-    echo "${SCRIPT_DIR}/../${SHARED_DIR}"
+  local node_dir="${COMMON_DIR}/../${SHARED_DIR}/${NODE_ID}"
+  if [[ ! -d "$node_dir" && -f "${COMMON_DIR}/../${SHARED_DIR}/aws-instance-id" ]]; then
+    echo "${COMMON_DIR}/../${SHARED_DIR}"
     return
   fi
   echo "$node_dir"

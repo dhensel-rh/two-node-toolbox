@@ -4,29 +4,20 @@
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 DEPLOY_DIR="$(cd "${SCRIPT_DIR}/../../" && pwd)"
 
-# Source the instance.env file with absolute path
 # shellcheck source=/dev/null
-source "${DEPLOY_DIR}/aws-hypervisor/instance.env"
-
-# Resolve SHARED_DIR to absolute path if it's relative
-if [[ "${SHARED_DIR}" != /* ]]; then
-    export SHARED_DIR="${DEPLOY_DIR}/aws-hypervisor/${SHARED_DIR}"
-fi
+source "${DEPLOY_DIR}/aws-hypervisor/scripts/common.sh"
 
 set -o nounset
 set -o errexit
 set -o pipefail
 
-# Resolve per-node directory (multi-node layout) with fallback for legacy deployments
-NODE_DIR="${SHARED_DIR}/node-0"
-if [[ ! -d "${NODE_DIR}" ]]; then
-    NODE_DIR="${SHARED_DIR}"
-fi
+NODE_DIR="$(get_node_dir)"
 
 # Function: Check if VM infrastructure needs to change and determine cleanup strategy
 check_vm_infrastructure_change() {
     local topology="$1"
-    local state_file="${SHARED_DIR}/cluster-vm-state.json"
+    local state_file
+    state_file="$(get_shared_dir)/cluster-vm-state.json"
     local current_topology="$topology"
     local previous_topology=""
     local previous_installation_method=""
