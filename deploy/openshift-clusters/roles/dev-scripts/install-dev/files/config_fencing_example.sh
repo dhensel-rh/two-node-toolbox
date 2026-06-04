@@ -28,3 +28,11 @@ export OPENSHIFT_RELEASE_IMAGE=quay.io/openshift-release-dev/ocp-release:4.21.0-
 
 # Disable sigstore image verification during installation
 export OPENSHIFT_INSTALL_EXPERIMENTAL_DISABLE_IMAGE_POLICY=true
+
+# aarch64 (Graviton) Metal3 image overrides — upstream images are x86_64-only.
+# Rebuild monthly with: helpers/build-metal3-arm64.sh
+# if [ "$(uname -m)" = "aarch64" ]; then
+#     export IRONIC_IMAGE=quay.io/rh-edge-enablement/ironic:2026-06
+#     export VBMC_IMAGE=quay.io/rh-edge-enablement/vbmc:2026-06
+#     export SUSHY_TOOLS_IMAGE=quay.io/rh-edge-enablement/sushy-tools:2026-06
+# fi
