@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Get the directory where this script is located
-SCRIPT_DIR=$(dirname "$0")
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # Get the deploy directory (two levels up from scripts)
 DEPLOY_DIR="$(cd "${SCRIPT_DIR}/../.." && pwd)"
 
@@ -9,9 +9,12 @@ set -o nounset
 set -o errexit
 set -o pipefail
 
-# Check if instance data exists
-if [[ ! -f "${DEPLOY_DIR}/aws-hypervisor/instance-data/aws-instance-id" ]]; then
-    echo "Error: No instance found. Please run 'make deploy' first."
+# Source shared helpers
+# shellcheck source=common.sh
+source "${SCRIPT_DIR}/common.sh"
+
+# Check if instance data exists (EC2 or bare metal)
+if ! check_instance "${DEPLOY_DIR}" >/dev/null; then
     exit 1
 fi
 

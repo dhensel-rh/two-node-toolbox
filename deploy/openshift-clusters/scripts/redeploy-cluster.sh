@@ -4,14 +4,12 @@
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 DEPLOY_DIR="$(cd "${SCRIPT_DIR}/../../" && pwd)"
 
-# Source the instance.env file with absolute path
-# shellcheck source=/dev/null
-source "${DEPLOY_DIR}/aws-hypervisor/instance.env"
+# Source shared helpers
+# shellcheck source=common.sh
+source "${SCRIPT_DIR}/common.sh"
 
-# Resolve SHARED_DIR to absolute path if it's relative
-if [[ "${SHARED_DIR}" != /* ]]; then
-    export SHARED_DIR="${DEPLOY_DIR}/aws-hypervisor/${SHARED_DIR}"
-fi
+# Set SHARED_DIR (used by check_vm_infrastructure_change)
+export SHARED_DIR="${DEPLOY_DIR}/aws-hypervisor/instance-data"
 
 set -o nounset
 set -o errexit
@@ -26,7 +24,7 @@ check_vm_infrastructure_change() {
     local previous_installation_method=""
     local previous_status=""
     
-    echo "Checking VM infrastructure requirements for instance ${INSTANCE_ID}..."
+    echo "Checking VM infrastructure requirements for ${INSTANCE_DISPLAY}..."
     
     # Read previous state if exists
     if [[ -f "$state_file" ]]; then
@@ -49,7 +47,7 @@ check_vm_infrastructure_change() {
         export current_installation_method="IPI"
     fi
 
-    echo "Instance: ${INSTANCE_ID}"
+    echo "Instance: ${INSTANCE_DISPLAY}"
     echo "Previous cluster config: ${previous_topology:-none}/${previous_installation_method:-none} (status: ${previous_status:-unknown})"
     echo "Current cluster config: ${current_topology}/${current_installation_method}"
     
@@ -104,37 +102,38 @@ check_vm_infrastructure_change() {
 
 # Note: Cluster state is now managed by the Ansible playbook
 
-# Check if the instance exists and get its ID
-if [[ ! -f "${SHARED_DIR}/aws-instance-id" ]]; then
-    echo "Error: No instance found. Please run 'make deploy' first."
-    exit 1
+# Detect instance type
+INSTANCE_TYPE=$(check_instance "${DEPLOY_DIR}") || exit 1
+INSTANCE_DISPLAY=$(get_instance_display "${DEPLOY_DIR}" "${INSTANCE_TYPE}")
+
+echo "Redeploying OpenShift cluster on ${INSTANCE_DISPLAY}..."
+
+if [[ "${INSTANCE_TYPE}" == "aws" ]]; then
+    # shellcheck source=/dev/null
+    source "${DEPLOY_DIR}/aws-hypervisor/instance.env"
+
+    INSTANCE_ID="${INSTANCE_DISPLAY}"
+    INSTANCE_STATE=$(aws --region "${REGION}" ec2 describe-instances --instance-ids "${INSTANCE_ID}" --query 'Reservations[0].Instances[0].State.Name' --output text --no-cli-pager)
+
+    if [[ "${INSTANCE_STATE}" != "running" ]]; then
+        echo "Error: Instance is not running (state: ${INSTANCE_STATE})"
+        echo "Cannot redeploy cluster on a stopped instance."
+        exit 1
+    fi
+
+    HOST_PUBLIC_IP=$(aws --region "${REGION}" ec2 describe-instances --instance-ids "${INSTANCE_ID}" --query 'Reservations[0].Instances[0].PublicIpAddress' --output text --no-cli-pager)
+
+    if [[ "${HOST_PUBLIC_IP}" == "null" || "${HOST_PUBLIC_IP}" == "" ]]; then
+        echo "Error: Could not determine instance public IP"
+        exit 1
+    fi
+
+    echo "Connecting to instance at ${HOST_PUBLIC_IP}..."
+
+    # Update SSH config
+    echo "Updating SSH config for aws-hypervisor..."
+    (cd "${DEPLOY_DIR}/aws-hypervisor" && go run main.go -k aws-hypervisor -h "$HOST_PUBLIC_IP")
 fi
-
-INSTANCE_ID=$(cat "${SHARED_DIR}/aws-instance-id")
-echo "Redeploying OpenShift cluster on instance ${INSTANCE_ID}..."
-
-# Check current instance state
-INSTANCE_STATE=$(aws --region "${REGION}" ec2 describe-instances --instance-ids "${INSTANCE_ID}" --query 'Reservations[0].Instances[0].State.Name' --output text --no-cli-pager)
-
-if [[ "${INSTANCE_STATE}" != "running" ]]; then
-    echo "Error: Instance is not running (state: ${INSTANCE_STATE})"
-    echo "Cannot redeploy cluster on a stopped instance."
-    exit 1
-fi
-
-# Get the instance IP
-HOST_PUBLIC_IP=$(aws --region "${REGION}" ec2 describe-instances --instance-ids "${INSTANCE_ID}" --query 'Reservations[0].Instances[0].PublicIpAddress' --output text --no-cli-pager)
-
-if [[ "${HOST_PUBLIC_IP}" == "null" || "${HOST_PUBLIC_IP}" == "" ]]; then
-    echo "Error: Could not determine instance public IP"
-    exit 1
-fi
-
-echo "Connecting to instance at ${HOST_PUBLIC_IP}..."
-
-# Update SSH config
-echo "Updating SSH config for aws-hypervisor..."
-(cd "${DEPLOY_DIR}/aws-hypervisor" && go run main.go -k aws-hypervisor -h "$HOST_PUBLIC_IP")
 
 # Interactive mode selection
 echo ""

@@ -4,27 +4,22 @@
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 DEPLOY_DIR="$(cd "${SCRIPT_DIR}/../../" && pwd)"
 
-# Source the instance.env file with absolute path
-# shellcheck source=/dev/null
-source "${DEPLOY_DIR}/aws-hypervisor/instance.env"
-
-# Resolve SHARED_DIR to absolute path if it's relative
-if [[ "${SHARED_DIR}" != /* ]]; then
-    export SHARED_DIR="${DEPLOY_DIR}/aws-hypervisor/${SHARED_DIR}"
-fi
+# Source shared helpers
+# shellcheck source=common.sh
+source "${SCRIPT_DIR}/common.sh"
 
 set -o nounset
 set -o errexit
 set -o pipefail
 
-# Check if the instance exists and get its ID
-if [[ ! -f "${SHARED_DIR}/aws-instance-id" ]]; then
-    echo "Error: No instance found. Please run 'make deploy' first."
-    exit 1
-fi
+# Detect instance type
+INSTANCE_TYPE=$(check_instance "${DEPLOY_DIR}") || exit 1
+INSTANCE_DISPLAY=$(get_instance_display "${DEPLOY_DIR}" "${INSTANCE_TYPE}")
+SSH_TARGET=$(get_ssh_target "${DEPLOY_DIR}" "${INSTANCE_TYPE}")
 
-INSTANCE_ID=$(cat "${SHARED_DIR}/aws-instance-id")
-echo "Starting up OpenShift cluster VMs on instance ${INSTANCE_ID}..."
+SHARED_DIR="${DEPLOY_DIR}/aws-hypervisor/instance-data"
+
+echo "Starting up OpenShift cluster VMs on ${INSTANCE_DISPLAY}..."
 
 # Check cluster topology from state file
 CLUSTER_STATE_FILE="${SHARED_DIR}/cluster-vm-state.json"
@@ -34,28 +29,25 @@ if [[ -f "${CLUSTER_STATE_FILE}" ]]; then
     echo "Detected cluster topology: ${CLUSTER_TOPOLOGY:-unknown}"
 fi
 
-# Check current instance state
-INSTANCE_STATE=$(aws --region "${REGION}" ec2 describe-instances --instance-ids "${INSTANCE_ID}" --query 'Reservations[0].Instances[0].State.Name' --output text --no-cli-pager)
+if [[ "${INSTANCE_TYPE}" == "aws" ]]; then
+    # shellcheck source=/dev/null
+    source "${DEPLOY_DIR}/aws-hypervisor/instance.env"
 
-if [[ "${INSTANCE_STATE}" != "running" ]]; then
-    echo "Error: Instance is not running (state: ${INSTANCE_STATE})"
-    echo "Cannot start cluster on a stopped instance."
-    exit 1
+    INSTANCE_ID="${INSTANCE_DISPLAY}"
+    INSTANCE_STATE=$(aws --region "${REGION}" ec2 describe-instances --instance-ids "${INSTANCE_ID}" --query 'Reservations[0].Instances[0].State.Name' --output text --no-cli-pager)
+
+    if [[ "${INSTANCE_STATE}" != "running" ]]; then
+        echo "Error: Instance is not running (state: ${INSTANCE_STATE})"
+        echo "Cannot start cluster on a stopped instance."
+        exit 1
+    fi
 fi
 
-# Get the instance IP
-HOST_PUBLIC_IP=$(aws --region "${REGION}" ec2 describe-instances --instance-ids "${INSTANCE_ID}" --query 'Reservations[0].Instances[0].PublicIpAddress' --output text --no-cli-pager)
-
-if [[ "${HOST_PUBLIC_IP}" == "null" || "${HOST_PUBLIC_IP}" == "" ]]; then
-    echo "Error: Could not determine instance public IP"
-    exit 1
-fi
-
-echo "Connecting to instance at ${HOST_PUBLIC_IP}..."
+echo "Connecting to ${SSH_TARGET}..."
 
 # Check if dev-scripts directory exists
-set +e  # Allow commands to fail
-ssh -o ConnectTimeout=10 "$(cat "${SHARED_DIR}/ssh_user")@${HOST_PUBLIC_IP}" "test -d ~/openshift-metal3" 2>/dev/null
+set +e
+ssh -o ConnectTimeout=10 "${SSH_TARGET}" "test -d ~/openshift-metal3" 2>/dev/null
 DEV_SCRIPTS_EXISTS=$?
 set -e
 
@@ -68,7 +60,7 @@ fi
 echo "Found dev-scripts directory. Starting up OpenShift cluster VMs..."
 
 # Start the cluster VMs remotely
-ssh "$(cat "${SHARED_DIR}/ssh_user")@${HOST_PUBLIC_IP}" << 'EOF'
+ssh "${SSH_TARGET}" << 'EOF'
     set -e
     cd ~/openshift-metal3/dev-scripts
     
@@ -170,7 +162,7 @@ if [[ "${CLUSTER_TOPOLOGY}" == "fencing" ]]; then
     echo ""
     echo "Fencing topology detected. Ensuring sushy-tools BMC simulator is running..."
 
-    ssh "$(cat "${SHARED_DIR}/ssh_user")@${HOST_PUBLIC_IP}" << 'EOF'
+    ssh "${SSH_TARGET}" << 'EOF'
         # Check if sushy-tools container exists (dev-scripts deployment)
         if sudo podman container exists sushy-tools 2>/dev/null; then
             CONTAINER_STATUS=$(sudo podman inspect sushy-tools --format '{{.State.Status}}' 2>/dev/null || echo "unknown")

@@ -81,6 +81,18 @@ patch-nodes:
 get-tnf-logs:
 	@./openshift-clusters/scripts/get-tnf-logs.sh
 
+bm-init:
+	@./openshift-clusters/scripts/bm-init.sh
+
+bm-fencing-agent:
+	@./openshift-clusters/scripts/deploy-cluster.sh --topology fencing --method agent
+
+bm-arbiter-agent:
+	@./openshift-clusters/scripts/deploy-cluster.sh --topology arbiter --method agent
+
+bm-ssh:
+	@./openshift-clusters/scripts/bm-ssh.sh
+
 help:
 	@echo "Available commands:"
 	@echo ""
@@ -118,4 +130,10 @@ help:
 	@echo ""
 	@echo "Cluster Utilities:"
 	@echo "  get-tnf-logs         - Collect pacemaker and etcd logs from cluster nodes"
+	@echo ""
+	@echo "Bare Metal Deployment:"
+	@echo "  bm-init              - Initialize a bare metal host for cluster deployment (interactive)"
+	@echo "  bm-fencing-agent     - Deploy fencing cluster on bare metal (agent-based install)"
+	@echo "  bm-arbiter-agent     - Deploy arbiter cluster on bare metal (agent-based install)"
+	@echo "  bm-ssh               - SSH into the bare metal host"
 
