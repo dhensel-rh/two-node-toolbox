@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
-# Resolve VM IP from virsh net-dhcp-leases. The same MAC can appear twice (anonymous
-# DUID vs hostname); prefer the row whose Hostname matches this VM (e.g. master-0).
-# Dual-stack leases can list both ipv4 and ipv6 for one MAC; prefer ipv4, then ipv6.
+# Resolve VM IP by checking the host's ARP/neighbor table first (works for both
+# static and DHCP networking), then falling back to virsh DHCP leases.
+# Dual-stack: prefer IPv4, then global IPv6 (skip link-local fe80:: and ULA fd00::).
 set -euo pipefail
 
 VM_NAME="${1:?VM name required}"
@@ -20,6 +20,31 @@ elif [[ "$VM_NAME" =~ -(ctlplane|arbiter)-?([0-9]*)$ ]]; then
 fi
 
 INTERFACES=$(virsh -c qemu:///system domiflist "$VM_NAME" | awk 'NR>2 && $3 != "" && $5 != "" {print $3, tolower($5)}')
+
+# --- Primary: ARP/neighbor table lookup (works for static and DHCP networking) ---
+MACS=$(virsh -c qemu:///system domiflist "$VM_NAME" | awk 'NR>2 && $5 != "" {print tolower($5)}')
+for MAC in $MACS; do
+  IP=$(ip neigh | awk -v mac="$MAC" '
+    BEGIN { m = tolower(mac) }
+    tolower($5) != m { next }
+    /^fe80:/ || /^fd00:/ { next }
+    { print $1 }
+  ')
+  [[ -z "$IP" ]] && continue
+  # Prefer IPv4 over IPv6 when both exist
+  IPV4=$(echo "$IP" | grep -v ':' | head -n1)
+  if [[ -n "$IPV4" ]]; then
+    echo "$IPV4"
+    exit 0
+  fi
+  IPV6=$(echo "$IP" | head -n1)
+  if [[ -n "$IPV6" ]]; then
+    echo "$IPV6"
+    exit 0
+  fi
+done
+
+# --- Fallback: DHCP lease lookup (hostname-aware, dual-stack safe) ---
 
 lease_ip_for_mac() {
   local LEASES="$1"
