@@ -28,7 +28,7 @@ INTERFACES=$(virsh -c qemu:///system domiflist "$VM_NAME" | awk 'NR>2 && $3 != "
 MACS=$(virsh -c qemu:///system domiflist "$VM_NAME" | awk 'NR>2 && $5 != "" {print tolower($5)}')
 CANDIDATES=""
 for MAC in $MACS; do
-  SCORED=$(ip neigh | awk -v mac="$MAC" '
+  SCORED=$(ip neigh 2>/dev/null | awk -v mac="$MAC" '
     BEGIN { m = tolower(mac) }
     tolower($5) != m { next }
     /^fe80:/ || /^fd00:/ { next }
