@@ -22,29 +22,36 @@ fi
 INTERFACES=$(virsh -c qemu:///system domiflist "$VM_NAME" | awk 'NR>2 && $3 != "" && $5 != "" {print $3, tolower($5)}')
 
 # --- Primary: ARP/neighbor table lookup (works for static and DHCP networking) ---
+# Collect candidates scored by preference, then validate with SSH reachability.
+# VIPs (API, ingress) share the NIC's MAC, so multiple IPs may match; the SSH
+# check ensures we return the actual node address.
 MACS=$(virsh -c qemu:///system domiflist "$VM_NAME" | awk 'NR>2 && $5 != "" {print tolower($5)}')
+CANDIDATES=""
 for MAC in $MACS; do
-  # Score candidates: prefer IPv4, then REACHABLE+router IPv6, then best available.
-  # On IPv6, multiple addresses share a MAC (node IP, VIPs); scoring avoids picking a VIP.
-  BEST=$(ip neigh | awk -v mac="$MAC" '
-    BEGIN { m = tolower(mac); best_score = -1 }
+  SCORED=$(ip neigh | awk -v mac="$MAC" '
+    BEGIN { m = tolower(mac) }
     tolower($5) != m { next }
     /^fe80:/ || /^fd00:/ { next }
     {
       score = 0
-      is_v4 = ($1 !~ /:/)
-      if (is_v4) score += 10
+      if ($1 !~ /:/) score += 10
       if (/router/) score += 2
       if ($NF == "REACHABLE") score += 1
-      if (score > best_score) { best_score = score; best_ip = $1 }
+      printf "%d %s\n", score, $1
     }
-    END { if (best_ip != "") print best_ip }
   ')
-  if [[ -n "$BEST" ]]; then
-    echo "$BEST"
-    exit 0
-  fi
+  [[ -n "$SCORED" ]] && CANDIDATES="${CANDIDATES}${CANDIDATES:+$'\n'}${SCORED}"
 done
+if [[ -n "$CANDIDATES" ]]; then
+  while IFS=' ' read -r _score ip; do
+    REMOTE_HOST=$(ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+      -o ConnectTimeout=2 -o BatchMode=yes "core@${ip}" "hostname -s" 2>/dev/null) || continue
+    if [[ -z "$EXPECTED_HOSTNAME" ]] || [[ "$REMOTE_HOST" == *"${EXPECTED_HOSTNAME}"* ]]; then
+      echo "$ip"
+      exit 0
+    fi
+  done <<< "$(echo "$CANDIDATES" | sort -rn)"
+fi
 
 # --- Fallback: DHCP lease lookup (hostname-aware, dual-stack safe) ---
 
