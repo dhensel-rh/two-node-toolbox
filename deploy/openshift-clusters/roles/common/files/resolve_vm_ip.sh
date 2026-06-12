@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
-# Resolve VM IP from virsh net-dhcp-leases. The same MAC can appear twice (anonymous
-# DUID vs hostname); prefer the row whose Hostname matches this VM (e.g. master-0).
-# Dual-stack leases can list both ipv4 and ipv6 for one MAC; prefer ipv4, then ipv6.
+# Resolve VM IP by checking the host's ARP/neighbor table first (works for both
+# static and DHCP networking), then falling back to virsh DHCP leases.
+# Dual-stack: prefer IPv4, then global IPv6 (skip link-local fe80:: and ULA fd00::).
 set -euo pipefail
 
 VM_NAME="${1:?VM name required}"
@@ -20,6 +20,40 @@ elif [[ "$VM_NAME" =~ -(ctlplane|arbiter)-?([0-9]*)$ ]]; then
 fi
 
 INTERFACES=$(virsh -c qemu:///system domiflist "$VM_NAME" | awk 'NR>2 && $3 != "" && $5 != "" {print $3, tolower($5)}')
+
+# --- Primary: ARP/neighbor table lookup (works for static and DHCP networking) ---
+# Collect candidates scored by preference, then validate with SSH reachability.
+# VIPs (API, ingress) share the NIC's MAC, so multiple IPs may match; the SSH
+# check ensures we return the actual node address.
+MACS=$(virsh -c qemu:///system domiflist "$VM_NAME" | awk 'NR>2 && $5 != "" {print tolower($5)}')
+CANDIDATES=""
+for MAC in $MACS; do
+  SCORED=$(ip neigh 2>/dev/null | awk -v mac="$MAC" '
+    BEGIN { m = tolower(mac) }
+    tolower($5) != m { next }
+    /^fe80:/ || /^fd00:/ { next }
+    {
+      score = 0
+      if ($1 !~ /:/) score += 10
+      if (/router/) score += 2
+      if ($NF == "REACHABLE") score += 1
+      printf "%d %s\n", score, $1
+    }
+  ')
+  [[ -n "$SCORED" ]] && CANDIDATES="${CANDIDATES}${CANDIDATES:+$'\n'}${SCORED}"
+done
+if [[ -n "$CANDIDATES" ]]; then
+  while IFS=' ' read -r _score ip; do
+    REMOTE_HOST=$(ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+      -o ConnectTimeout=2 -o BatchMode=yes "core@${ip}" "hostname -s" 2>/dev/null) || continue
+    if [[ -z "$EXPECTED_HOSTNAME" ]] || [[ "$REMOTE_HOST" == *"${EXPECTED_HOSTNAME}"* ]]; then
+      echo "$ip"
+      exit 0
+    fi
+  done <<< "$(echo "$CANDIDATES" | sort -rn)"
+fi
+
+# --- Fallback: DHCP lease lookup (hostname-aware, dual-stack safe) ---
 
 lease_ip_for_mac() {
   local LEASES="$1"
