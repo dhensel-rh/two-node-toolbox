@@ -24,22 +24,24 @@ INTERFACES=$(virsh -c qemu:///system domiflist "$VM_NAME" | awk 'NR>2 && $3 != "
 # --- Primary: ARP/neighbor table lookup (works for static and DHCP networking) ---
 MACS=$(virsh -c qemu:///system domiflist "$VM_NAME" | awk 'NR>2 && $5 != "" {print tolower($5)}')
 for MAC in $MACS; do
-  IP=$(ip neigh | awk -v mac="$MAC" '
-    BEGIN { m = tolower(mac) }
+  # Score candidates: prefer IPv4, then REACHABLE+router IPv6, then best available.
+  # On IPv6, multiple addresses share a MAC (node IP, VIPs); scoring avoids picking a VIP.
+  BEST=$(ip neigh | awk -v mac="$MAC" '
+    BEGIN { m = tolower(mac); best_score = -1 }
     tolower($5) != m { next }
     /^fe80:/ || /^fd00:/ { next }
-    { print $1 }
+    {
+      score = 0
+      is_v4 = ($1 !~ /:/)
+      if (is_v4) score += 10
+      if (/router/) score += 2
+      if ($NF == "REACHABLE") score += 1
+      if (score > best_score) { best_score = score; best_ip = $1 }
+    }
+    END { if (best_ip != "") print best_ip }
   ')
-  [[ -z "$IP" ]] && continue
-  # Prefer IPv4 over IPv6 when both exist
-  IPV4=$(echo "$IP" | grep -v ':' | head -n1)
-  if [[ -n "$IPV4" ]]; then
-    echo "$IPV4"
-    exit 0
-  fi
-  IPV6=$(echo "$IP" | head -n1)
-  if [[ -n "$IPV6" ]]; then
-    echo "$IPV6"
+  if [[ -n "$BEST" ]]; then
+    echo "$BEST"
     exit 0
   fi
 done
