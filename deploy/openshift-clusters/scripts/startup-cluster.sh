@@ -215,5 +215,7 @@ EOF
 fi
 
 echo ""
+echo "=================================="
 echo "OpenShift cluster startup completed successfully!"
-echo "If you need to redeploy the cluster, use: make redeploy-cluster" 
+echo "=================================="
+print_proxy_instructions 

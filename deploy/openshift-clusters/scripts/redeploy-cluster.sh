@@ -226,10 +226,4 @@ ansible-playbook redeploy.yml -i inventory.ini \
 echo "=================================="
 echo "✓ OpenShift cluster redeploy completed successfully!"
 echo "=================================="
-echo ""
-echo "Next steps:"
-echo "1. Source the proxy environment from anywhere:"
-echo "   source ${DEPLOY_DIR}/openshift-clusters/proxy.env"
-echo "   (or from openshift-clusters directory: source proxy.env)"
-echo "2. Verify cluster access: oc get nodes"
-echo "3. Access the cluster console if needed"
+print_proxy_instructions
