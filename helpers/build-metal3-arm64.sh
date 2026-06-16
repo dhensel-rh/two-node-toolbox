@@ -146,16 +146,31 @@ prepare_source() {
         fi
         WORK_DIR="${SOURCE_DIR}"
         KEEP_SOURCE="true"
+        if ! git -C "${WORK_DIR}" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+            msg_err "--source-dir is not a git checkout: ${WORK_DIR}"
+            exit 1
+        fi
+        if ! git -C "${WORK_DIR}" rev-parse --verify "${REF}^{commit}" >/dev/null 2>&1; then
+            msg_err "Ref '${REF}' not found in --source-dir. Fetch it or pass a valid --ref."
+            exit 1
+        fi
+        local head_commit ref_commit
+        head_commit="$(git -C "${WORK_DIR}" rev-parse HEAD)"
+        ref_commit="$(git -C "${WORK_DIR}" rev-parse "${REF}^{commit}")"
+        if [[ "${head_commit}" != "${ref_commit}" ]]; then
+            msg_err "--source-dir HEAD does not match --ref '${REF}'. Checkout the ref first."
+            exit 1
+        fi
         msg_info "Using existing source: ${WORK_DIR}"
     else
         WORK_DIR="$(mktemp -d)"
         msg_info "Cloning ironic-image at ref '${REF}' into ${WORK_DIR}"
         git clone --depth 1 --branch "${REF}" "${IRONIC_IMAGE_REPO}" "${WORK_DIR}" 2>&1 \
             || git clone "${IRONIC_IMAGE_REPO}" "${WORK_DIR}" 2>&1
-        if [[ "$(git -C "${WORK_DIR}" rev-parse HEAD 2>/dev/null)" != *"${REF}"* ]]; then
+        if ! git -C "${WORK_DIR}" rev-parse --verify "${REF}^{commit}" >/dev/null 2>&1; then
             git -C "${WORK_DIR}" fetch origin "${REF}" 2>&1
-            git -C "${WORK_DIR}" checkout "${REF}" 2>&1
         fi
+        git -C "${WORK_DIR}" checkout "${REF}" 2>&1
     fi
 
     local commit
@@ -232,10 +247,9 @@ main() {
     msg_info "Push: ${PUSH}"
     echo ""
 
+    trap cleanup_source EXIT
     check_prerequisites
     prepare_source
-
-    trap cleanup_source EXIT
 
     IFS=',' read -ra IMAGE_LIST <<< "${IMAGES}"
 
