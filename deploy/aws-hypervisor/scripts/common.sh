@@ -30,6 +30,16 @@ get_node_dir() {
   echo "$node_dir"
 }
 
+function print_proxy_instructions() {
+    echo ""
+    echo "Next steps:"
+    echo "1. Source the proxy environment from anywhere:"
+    echo "   source ${DEPLOY_DIR}/openshift-clusters/proxy.env"
+    echo "   (or from openshift-clusters directory: source proxy.env)"
+    echo "2. Verify cluster access: oc get nodes"
+    echo "3. Access the cluster console if needed"
+}
+
 readonly COLOR_RED='\033[0;31m'
 readonly COLOR_YELLOW='\033[0;33m'
 readonly COLOR_BLUE='\033[0;34m'
