@@ -128,6 +128,30 @@ ansible all -i deploy/openshift-clusters/inventory.ini -m shell -a "./fencing_va
 **Note:** Disruptive testing functionality is not yet fully supported and should not be used in production environments.
 
 
+### MAC-Only Fencing Credentials (dev-scripts patch)
+
+Patches dev-scripts on a hypervisor to generate `macaddress:`-based fencing credentials instead of `hostname:`-based ones in the ABI install-config. Used for verifying [OCPEDGE-2692](https://issues.redhat.com/browse/OCPEDGE-2692) (MAC address fencing credential support in assisted-service).
+
+**What it patches** (3 files under `dev-scripts/agent/`):
+1. `05_agent_configure.sh` — collects master MAC addresses into `AGENT_MASTER_MACS_STR`
+2. `roles/manifests/vars/main.yml` — adds `agent_master_macs` Ansible variable
+3. `roles/manifests/templates/install-config_baremetal_yaml.j2` — replaces `hostname:` with `macaddress:` in the fencing credentials block
+
+Also fixes `OPENSHIFT_CI` case sensitivity (`"TRUE"` → `"true"`) in the dev-scripts config file.
+
+**Usage:**
+
+```bash
+# From helpers/ directory
+./patch-devscripts-mac-fencing.sh ec2-user@<hypervisor-ip>
+
+# Then on the hypervisor:
+cd /home/ec2-user/openshift-metal3/dev-scripts
+sudo make agent
+```
+
+**Important:** TNT's Ansible role runs `git checkout --force` on dev-scripts before every deployment, wiping these patches. Either run this script after TNT's git checkout (before `make agent`), or deploy directly on the hypervisor.
+
 ### Resource Agents Patching
 
 The `build-and-patch-resource-agents.yml` playbook automates the entire workflow:
