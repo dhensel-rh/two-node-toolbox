@@ -139,6 +139,10 @@ Patches dev-scripts on a hypervisor to generate `macaddress:`-based fencing cred
 
 Also fixes `OPENSHIFT_CI` case sensitivity (`"TRUE"` → `"true"`) in the dev-scripts config file.
 
+**Prerequisites:**
+- Hypervisor must be initialized (TNT `make init` or `make deploy`) so that dev-scripts is already cloned
+- A running cluster is NOT required — this patches source files before deployment
+
 **Usage:**
 
 ```bash

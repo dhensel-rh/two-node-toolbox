@@ -4,7 +4,13 @@ set -euo pipefail
 # Patches dev-scripts on a hypervisor to generate MAC-only fencing credentials
 # instead of hostname-based ones, for verifying OCPEDGE-2692.
 #
-# Usage: ./patch-devscripts-mac-fencing.sh [hypervisor_host]
+# Prerequisites:
+#   - Hypervisor must be initialized (TNT `make init` or `make deploy`)
+#     so that dev-scripts is already cloned on the hypervisor.
+#   - A running cluster is NOT required — this patches source files
+#     before the cluster is deployed.
+#
+# Usage: ./patch-devscripts-mac-fencing.sh <hypervisor_host>
 # Example: ./patch-devscripts-mac-fencing.sh ec2-user@3.21.82.70
 #
 # IMPORTANT: TNT's Ansible role runs `git checkout --force` on dev-scripts
