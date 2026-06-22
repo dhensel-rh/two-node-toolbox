@@ -116,6 +116,40 @@ If you have configured the RHSM activation key variables in your `instance.env` 
 [ec2-user@ip-x-x-x-x ~]$ ./configure.sh
 ```
 
+## Graviton (aarch64) Instances
+
+This toolbox supports AWS Graviton bare metal instances (`c7g.metal`, `m7g.metal`, `r7g.metal`) as hypervisors. Graviton instances are ~40% cheaper than equivalent x86_64 instances (e.g., `c7g.metal` at $2.32/hr vs `c5n.metal` at $3.89/hr).
+
+### Configuration
+
+In your `instance.env`, set:
+
+```bash
+export RHEL_HOST_ARCHITECTURE=aarch64
+export EC2_INSTANCE_TYPE="c7g.metal"  # or m7g.metal, r7g.metal
+```
+
+AMI auto-detection works for both architectures — the `aarch64` → `arm64` mapping is handled automatically.
+
+### Metal3 Image Overrides
+
+Upstream Metal3 images (`quay.io/metal3-io/{ironic,vbmc,sushy-tools}`) are x86_64-only. On aarch64 hypervisors, you must override them with arm64 builds in your dev-scripts config (e.g., `config_fencing.sh`):
+
+```bash
+if [ "$(uname -m)" = "aarch64" ]; then
+    export IRONIC_IMAGE=quay.io/rh-edge-enablement/ironic:2026-06
+    export VBMC_IMAGE=quay.io/rh-edge-enablement/vbmc:2026-06
+    export SUSHY_TOOLS_IMAGE=quay.io/rh-edge-enablement/sushy-tools:2026-06
+fi
+```
+
+See `config_fencing_example.sh` for a complete example. To rebuild these images, use `helpers/build-metal3-arm64.sh` (see [helpers/README.md](../../helpers/README.md)).
+
+### Known Limitations
+
+- **IPv6 IPI is not supported on aarch64** — nodes enter `inspecting` but never PXE-boot the IPA ramdisk. Use `IP_STACK=v4`.
+- **CI release auto-discovery does not work** — you must set `OPENSHIFT_RELEASE_IMAGE` explicitly to an aarch64 payload (e.g., `quay.io/openshift-release-dev/ocp-release:4.22.0-aarch64`).
+
 ## Script Dependencies
 
 All scripts expect:

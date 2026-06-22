@@ -57,11 +57,21 @@ function msg_info() {
   echo -e "${COLOR_BLUE}INFO: ${1}${COLOR_CLEAR}" >&2
 }
 
+function get_ami_arch() {
+  local arch="${RHEL_HOST_ARCHITECTURE}"
+  if [[ "${arch}" == "aarch64" ]]; then
+    arch="arm64"
+  fi
+  echo "${arch}"
+}
+
 function aws_ec2_describe_images() {
+  local ami_arch
+  ami_arch="$(get_ami_arch)"
   # shellcheck disable=SC2153 # REGION is an env var from instance.env, not a misspelling of local 'region'
   aws ec2 describe-images \
   --query 'reverse(sort_by(Images, &CreationDate))[].[Name, ImageId, CreationDate]' \
-  --filters "Name=name,Values=RHEL-${RHEL_VERSION}.*GA*${RHEL_HOST_ARCHITECTURE}*" \
+  --filters "Name=name,Values=RHEL-${RHEL_VERSION}*${ami_arch}*" \
   --region "${REGION}" \
   --owners amazon \
   --output json \

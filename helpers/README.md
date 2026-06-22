@@ -8,6 +8,7 @@ This directory contains multiple helper tools for various OpenShift cluster oper
 
 - **Resource Agent Patching**: Scripts and playbooks (recommended usage) for installing RPM packages on cluster nodes using rpm-ostree's override functionality
 - **Fencing Validation**: Tools for validating two-node cluster fencing configuration and health
+- **arm64 Metal3 Image Builder**: Builds arm64 variants of Metal3 images for aarch64 hypervisors (Graviton)
 - **Custom OCP 5.x payload (optional)**: `resource-agents-build/custom-payload.sh` to build a custom RHCOS layer from the resource-agents RPM and publish a custom release image with `oc adm release new`
 
 ## Requirements
@@ -127,6 +128,46 @@ ansible all -i deploy/openshift-clusters/inventory.ini -m shell -a "./fencing_va
 
 **Note:** Disruptive testing functionality is not yet fully supported and should not be used in production environments.
 
+
+### arm64 Metal3 Image Builder
+
+Builds arm64 variants of Metal3 container images (ironic, vbmc, sushy-tools) from the upstream `metal3-io/ironic-image` source. Required because upstream only publishes x86_64 images to `quay.io/metal3-io/`.
+
+**Usage:**
+
+```bash
+# Build all images and push to quay.io/rh-edge-enablement
+./build-metal3-arm64.sh
+
+# Build from a release tag with a date-based tag
+./build-metal3-arm64.sh --ref v28.0.0 --tag 2026-06
+
+# Build only sushy-tools, don't push
+./build-metal3-arm64.sh --images sushy-tools --no-push
+
+# Use a different registry namespace
+./build-metal3-arm64.sh --namespace my-namespace
+```
+
+**Options:**
+
+| Option | Description |
+|--------|-------------|
+| `--namespace <ns>` | Registry namespace (default: `rh-edge-enablement`) |
+| `--registry <reg>` | Container registry (default: `quay.io`) |
+| `--ref <git-ref>` | ironic-image git ref to build from (default: `main`) |
+| `--tag <tag>` | Image tag (default: `latest`) |
+| `--images <list>` | Comma-separated images to build (default: `ironic,vbmc,sushy-tools`) |
+| `--no-push` | Build only, do not push |
+| `--keep-source` | Do not remove cloned source after build |
+| `--source-dir <dir>` | Use existing ironic-image checkout |
+
+**Prerequisites:**
+- `podman` (with `qemu-user-static` if cross-building from x86_64)
+- Authenticated to the target registry (`podman login quay.io`)
+- Git
+
+**Rebuild cadence:** Monthly, or when upstream ironic-image changes. ~20 min native on aarch64, ~45 min cross-build from x86_64.
 
 ### Resource Agents Patching
 
