@@ -2,6 +2,8 @@
 # shellcheck source=/dev/null
 source ~/profile.env
 
+RHEL_MAJOR_VERSION=$(. /etc/os-release && echo "${VERSION_ID%%.*}")
+
 sudo hostnamectl set-hostname "aws-${STACK_NAME}"
 
 function get_ocp_version() {
@@ -45,9 +47,9 @@ fi
 
 sudo subscription-manager attach --pool=8a85f99c7d76f2fd017d96c411c70667
 sudo subscription-manager repos \
---enable "rhel-9-for-$(uname -m)-appstream-rpms" \
---enable "rhel-9-for-$(uname -m)-baseos-rpms" \
---enable "rhocp-$(get_ocp_version)-for-rhel-9-$(uname -m)-rpms"
+--enable "rhel-${RHEL_MAJOR_VERSION}-for-$(uname -m)-appstream-rpms" \
+--enable "rhel-${RHEL_MAJOR_VERSION}-for-$(uname -m)-baseos-rpms" \
+--enable "rhocp-$(get_ocp_version)-for-rhel-${RHEL_MAJOR_VERSION}-$(uname -m)-rpms"
 
 # Enable CodeReady Builder (CRB) repo for -devel packages (e.g. libvirt-devel).
 # On RHUI instances (like AWS), subscription-manager repos --enable doesn't work
@@ -57,7 +59,7 @@ enable_crb_repo() {
     if command -v crb &>/dev/null; then
         sudo crb enable
     else
-        sudo subscription-manager repos --enable "codeready-builder-for-rhel-9-$(uname -m)-rpms"
+        sudo subscription-manager repos --enable "codeready-builder-for-rhel-${RHEL_MAJOR_VERSION}-$(uname -m)-rpms"
     fi
 }
 

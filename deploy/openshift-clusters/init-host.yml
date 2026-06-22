@@ -212,9 +212,9 @@
     - name: Enable required repositories
       community.general.rhsm_repository:
         name:
-          - "rhel-9-for-{{ ansible_architecture }}-appstream-rpms"
-          - "rhel-9-for-{{ ansible_architecture }}-baseos-rpms"
-          - "rhocp-{{ ocp_version }}-for-rhel-9-{{ ansible_architecture }}-rpms"
+          - "rhel-{{ ansible_distribution_major_version }}-for-{{ ansible_architecture }}-appstream-rpms"
+          - "rhel-{{ ansible_distribution_major_version }}-for-{{ ansible_architecture }}-baseos-rpms"
+          - "rhocp-{{ ocp_version }}-for-rhel-{{ ansible_distribution_major_version }}-{{ ansible_architecture }}-rpms"
         state: enabled
       become: yes
 
