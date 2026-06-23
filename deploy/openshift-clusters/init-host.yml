@@ -185,6 +185,11 @@
             - rhsm_activation_key is not defined or rhsm_activation_key | length == 0
       when: not rhsm_already_registered
 
+    - name: Override default OCP version for RHEL 10+
+      ansible.builtin.set_fact:
+        default_ocp_version: "4.23"
+      when: ansible_distribution_major_version | int >= 10
+
     - name: Get latest OCP version
       ansible.builtin.uri:
         url: https://sippy.dptools.openshift.org/api/releases
