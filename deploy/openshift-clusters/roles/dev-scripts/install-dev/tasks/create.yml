@@ -23,8 +23,8 @@
   become: true
   when: method == "agent"
   loop:
-    - "."
-    - "/root"
+    - "{{ ansible_env.HOME }}"
+    - "{{ ansible_env.HOME }}/{{ dev_scripts_path }}"
 
 - name: Start OpenShift
   make:
