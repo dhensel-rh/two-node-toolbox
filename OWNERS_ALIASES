@@ -8,6 +8,7 @@ aliases:
   - qJkee
   - jaypoulz
   - fonta-rh
+  - copejon
   edge-enablement-reviewers:
   - jerpeter1
   - eggfoobar
@@ -15,6 +16,7 @@ aliases:
   - qJkee
   - jaypoulz
   - fonta-rh
+  - copejon
   team-dragonfly-approvers:
   - slintes
   - clobrano 
