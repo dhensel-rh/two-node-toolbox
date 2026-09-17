@@ -117,6 +117,7 @@
   when:
     - topology_cmd_check.rc == 0
     - not sno_already_ha
+    - not (sno_allow_transition_with_warnings | default(false) | bool)
 
 - name: "[topology] Stop before transition confirmation (stop_before_transition_confirm=true)"
   block:
@@ -126,7 +127,7 @@
           ✓ Transition staged and ready to confirm
 
           The cluster is ready for topology transition. To complete manually:
-            $ oc adm transition topology --control-plane=HighlyAvailable --infrastructure=HighlyAvailable --confirm
+            $ oc adm transition topology --control-plane=HighlyAvailable --infrastructure=HighlyAvailable --confirm{{ ' --allow-transition-with-warnings' if (sno_allow_transition_with_warnings | default(false) | bool) else '' }}
 
           To resume and complete the transition automatically, rerun WITHOUT the stop flag:
             $ make sno-to-3node
@@ -146,7 +147,7 @@
 - name: "[topology] Initiate topology transition (patches Infrastructure.spec)"
   shell: |
     oc adm transition topology --control-plane=HighlyAvailable --infrastructure=HighlyAvailable --confirm \
-      {{ '--allow-transition-with-warnings' if sno_allow_transition_with_warnings else '' }}
+      {{ '--allow-transition-with-warnings' if (sno_allow_transition_with_warnings | default(false) | bool) else '' }}
   environment: "{{ sno_oc_env }}"
   register: transition_result
   changed_when: false
