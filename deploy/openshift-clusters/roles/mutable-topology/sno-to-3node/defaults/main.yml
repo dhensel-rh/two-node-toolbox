@@ -34,6 +34,9 @@ sno_etcd_timeout_minutes: 15
 # Auto-fix MCO drain deadlock during topology transition
 sno_auto_fix_drain: true
 
+# Allow transition even when non-blocking readiness checks fail (e.g., karpenter CO missing conditions)
+sno_allow_transition_with_warnings: false
+
 # Paths (override if dev-scripts is in a non-standard location)
 sno_kubeconfig: ""
 

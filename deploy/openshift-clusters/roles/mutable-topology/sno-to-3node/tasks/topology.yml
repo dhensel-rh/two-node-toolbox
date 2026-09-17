@@ -96,8 +96,6 @@
 
 - name: "[topology] Wait for cluster to be ready for transition (up to 20 minutes)"
   shell: |
-    # Use the official preflight command to validate cluster readiness
-    # This includes operator stability checks with proper Progressing logic
     oc adm transition topology --control-plane=HighlyAvailable --infrastructure=HighlyAvailable 2>&1
   environment: "{{ sno_oc_env }}"
   register: preflight_check
@@ -111,6 +109,7 @@
   when:
     - topology_cmd_check.rc == 0
     - not sno_already_ha
+    - not (sno_allow_transition_with_warnings | default(false) | bool)
 
 - name: "[topology] Display readiness validation"
   debug:
@@ -146,7 +145,8 @@
 
 - name: "[topology] Initiate topology transition (patches Infrastructure.spec)"
   shell: |
-    oc adm transition topology --control-plane=HighlyAvailable --infrastructure=HighlyAvailable --confirm
+    oc adm transition topology --control-plane=HighlyAvailable --infrastructure=HighlyAvailable --confirm \
+      {{ '--allow-transition-with-warnings' if sno_allow_transition_with_warnings else '' }}
   environment: "{{ sno_oc_env }}"
   register: transition_result
   changed_when: false
